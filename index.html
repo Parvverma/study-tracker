@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Study Tracker</title>
+	<!-- Google font for header name -->
+	<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600;700;800&display=swap" rel="stylesheet">
+	<link rel="icon" href="assets/Study_tracker_logo.png" type="image/png">
+	<link rel="stylesheet" href="style.css" />
+</head>
+
+<body>
+	<!-- Falling stars overlay (page background animation) -->
+	<div class="falling-stars-overlay" aria-hidden="true">
+		<div class="fstar f1"></div>
+		<div class="fstar f2"></div>
+		<div class="fstar f3"></div>
+		<div class="fstar f4"></div>
+		<div class="fstar f5"></div>
+		<div class="fstar f6"></div>
+		<div class="fstar f7"></div>
+		<div class="fstar f8"></div>
+		<div class="fstar f9"></div>
+		<div class="fstar f10"></div>
+		<div class="fstar f11"></div>
+		<div class="fstar f12"></div>
+	</div>
+	<!-- Floating site header (centered, 80% width) -->
+	<header class="site-header" role="banner">
+		<div class="site-header-inner">
+			<div class="header-left-name">
+				<img src="assets/Study_tracker_logo.png" alt="logo" class="site-logo" />
+				<span>Parv verma</span>
+			</div>
+			<div class="header-center-title">Study Tracker</div>
+			<div class="site-actions">
+				<button id="download-report" class="btn" title="Download Report">📥 Download Report</button>
+				<button id="theme-toggle" class="btn theme-toggle" title="Toggle theme"
+					aria-label="Toggle dark light theme">🌗</button>
+			</div>
+		</div>
+	</header>
+
+	<main class="container">
+
+
+		<section class="grid">
+
+
+			<!-- Add study form (main column) -->
+			<div class="card form-card">
+				<h3>➕ Add Study Log</h3>
+				<form id="log-form">
+					<label>
+						Subject
+						<input type="text" id="subject" name="subject" placeholder="e.g. Math" required />
+					</label>
+
+					<label>
+						Minutes
+						<input type="number" id="minutes" name="minutes" min="1" placeholder="30" required />
+					</label>
+
+					<label>
+						Date
+						<input type="date" id="date" name="date" />
+					</label>
+
+					<div class="form-actions">
+						<button type="submit" class="btn primary">➕ Add Log</button>
+						<button type="reset" class="btn">Reset</button>
+					</div>
+
+					<!-- Solar system animation (larger) with dropping stars -->
+					<div class="solar-wrapper" aria-hidden="true">
+						<div class="stars">
+							<div class="star s1"></div>
+							<div class="star s2"></div>
+							<div class="star s3"></div>
+							<div class="star s4"></div>
+							<div class="star s5"></div>
+							<div class="star s6"></div>
+						</div>
+						<div class="solar-system large">
+							<div class="sun" title="Sun">☀️</div>
+							<div class="orbit orbit-1">
+								<div class="planet p1"></div>
+							</div>
+							<div class="orbit orbit-2">
+								<div class="planet p2"></div>
+							</div>
+							<div class="orbit orbit-3">
+								<div class="planet p3"></div>
+							</div>
+						</div>
+					</div>
+				</form>
+			</div>
+
+			<!-- Right column: stats and calendar -->
+			<div class="right-column">
+				<div class="card stats-card">
+					<h3>🕒 Total time of study</h3>
+					<div id="total-minutes" class="stat-value">0</div>
+				</div>
+
+				<div class="card stats-card">
+					<h3>🔥 Current streak</h3>
+					<div id="streak" class="stat-value">0</div>
+				</div>
+
+				<div class="card calendar-card">
+					<div class="calendar-header">
+						<button id="cal-prev" class="btn">◀</button>
+						<div id="calendar-month" class="calendar-month">Month</div>
+						<button id="cal-next" class="btn">▶</button>
+					</div>
+					<div id="calendar" class="calendar"></div>
+					<p class="muted small">Click a day to set the form date. Days with logs are highlighted.</p>
+				</div>
+			</div>
+
+			<!-- Logs list (full width) -->
+			<div class="card logs-card">
+				<h3 id="logs-title">Today's Logs</h3>
+				<ul id="logs-list" class="logs-list">
+					<!-- items injected by script -->
+				</ul>
+				<p id="no-logs" class="muted small">No logs for this date yet.</p>
+			</div>
+		</section>
+		<br>
+
+		<!-- Focus Timer (main column) -->
+		<div class="card timer-card">
+			<h3>⏱️ Focus Timer (25 min)</h3>
+			<div class="timer-display" id="timer-display">25:00</div>
+			<div class="timer-controls">
+				<button id="timer-start" class="btn primary">Start</button>
+				<button id="timer-pause" class="btn">Pause</button>
+				<button id="timer-reset" class="btn">Reset</button>
+			</div>
+		</div>
+		<section class="grid">
+			<!-- Subject-wise analytics -->
+			<div class="card analytics-card">
+				<h3>📊 Subject-wise Totals</h3>
+				<ul id="subject-totals" class="subject-totals">
+					<!-- items injected by script -->
+				</ul>
+				<!-- 30-day study heatmap -->
+				<div class="heatmap-card">
+					<h4>📅 Last 30 days <span id="heatmap-month" class="heatmap-month"></span></h4>
+					<div id="study-heatmap" class="study-heatmap" aria-hidden="false"></div>
+					<div id="heatmap-tooltip" class="heatmap-tooltip" style="display:none"></div>
+				</div>
+			</div>
+
+			<!-- Weekly stats and daily goal -->
+			<div class="card stats-extended-card">
+				<div class="goal-row">
+					<div>
+						<h3>🎯 Daily Goal</h3>
+						<div class="goal-controls">
+							<input id="daily-goal" type="number" min="0" step="0.25" placeholder="hours (e.g. 1.5)" />
+							<button id="save-goal" class="btn">Save</button>
+						</div>
+						<div class="goal-stats">
+							<div>Goal: <span id="goal-value">0</span></div>
+							<div>Progress: <span id="goal-percent">0%</span></div>
+							<div class="goal-bar">
+								<div id="goal-bar-fill" class="goal-fill" style="width:0%"></div>
+							</div>
+						</div>
+
+						<!-- Productivity score -->
+						<div class="productivity-row">
+							<h3>🏆 Productivity Score</h3>
+							<div class="productivity-stats">
+								<div id="productivity-text">Your Productivity Score: 0/100</div>
+								<div class="prod-bar">
+									<div id="productivity-fill" class="prod-fill" style="width:0%"></div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</section>
+
+		<footer class="footer muted small">
+			Data stored locally in your browser. No accounts, no backend.
+		</footer>
+	</main>
+
+	<!-- Analytics section scripts -->
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<script src="script.js" defer></script>
+</body>
+
+</html>

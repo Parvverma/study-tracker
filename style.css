@@ -1,0 +1,991 @@
+/* Theme variables */
+:root {
+  --bg: #f6f7fb;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --text: #0f1720;
+  --accent: #3751ff;
+  --accent-2: #7c9bff;
+  --danger: #d64545;
+  --glass: rgba(255, 255, 255, 0.6);
+  --shadow: 0 6px 20px rgba(18, 22, 26, 0.06);
+}
+
+body.dark-theme {
+  --bg: #0b1220;
+  --card: #071127;
+  --muted: #9aa6b2;
+  --text: #e6eef8;
+  --accent: #7c9bff;
+  --accent-2: #5b7dff;
+  --danger: #ff7b7b;
+  --glass: rgba(255, 255, 255, 0.03);
+  --shadow: 0 6px 20px rgba(2, 6, 23, 0.6);
+}
+
+/* Simple reset */
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.25s ease, color 0.25s ease;
+}
+
+.container {
+  max-width: 980px;
+  margin: 32px auto;
+  padding: 20px 20px 40px;
+  /* will be offset by fixed header */
+}
+
+/* Fixed header at top */
+.site-header {
+  position: fixed;
+  left: 50%;
+  transform: translateX(-50%);
+  top: 18px;
+  height: 78px;
+  width: 100%;
+  max-width: 1250px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.6));
+  /* more transparent */
+  backdrop-filter: blur(8px);
+  z-index: 50;
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.08);
+  border-radius: 16px;
+  animation: headerEntrance .6s cubic-bezier(.2, .9, .26, 1);
+}
+
+.site-header-inner {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.header-left-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'Poppins', system-ui, -apple-system, 'Segoe UI', Roboto, Arial;
+  font-weight: 800;
+  font-size: 23px;
+  color: rgb(17, 20, 29);
+  transform: translateY(0);
+  animation: namePop .9s cubic-bezier(.2, .9, .26, 1);
+}
+
+.site-logo {
+  width: 70px;
+  height: 70px;
+  border-radius: 8px;
+  object-fit: cover;
+  display: inline-block;
+}
+
+.header-center-title {
+  font-weight: 900;
+  font-size: 22px;
+  text-align: center;
+  letter-spacing: 0.6px;
+  color: linear-gradient(90deg, var(--accent), var(--accent-2));
+}
+
+/* colorful title text effect (uses gradient via background-clip) */
+.header-center-title {
+  background: linear-gradient(90deg, #007bff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 0 2px 10px rgba(127, 179, 255, 0.06);
+}
+
+@keyframes namePop {
+  from {
+    transform: translateY(6px) scale(.98);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.site-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* floating gentle bob */
+@keyframes headerFloat {
+  0% {
+    transform: translateX(-50%) translateY(0);
+  }
+
+  50% {
+    transform: translateX(-50%) translateY(-6px);
+  }
+
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes headerEntrance {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px) scale(.995);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+.site-header {
+  animation: headerEntrance .45s cubic-bezier(.2, .9, .26, 1), headerFloat 6s ease-in-out infinite 1s;
+}
+
+body.dark-theme .site-header {
+  background: linear-gradient(180deg, rgba(8, 12, 20, 0.86), rgba(8, 12, 20, 0.78));
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.5);
+}
+
+/* increase top spacing for main content so it isn't hidden under header */
+.container {
+  padding-top: 120px;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.app-header h1 {
+  margin: 0;
+  font-size: 26px;
+}
+
+.app-header .muted {
+  margin: 6px 0 18px;
+  color: var(--muted);
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+}
+
+.card {
+  background: linear-gradient(180deg, var(--card), calc(var(--card) + #00000000));
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: var(--shadow);
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+}
+
+/* Layout specifics */
+.timer-card {
+  grid-column: 1 / 8;
+  text-align: center;
+  margin-bottom: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.96));
+  border: 1px solid rgba(55, 81, 255, 0.06);
+}
+
+.timer-display {
+  font-size: 56px;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 2px;
+  margin: 12px 0;
+  color: var(--accent);
+  text-shadow: 0 4px 12px rgba(55, 81, 255, 0.1);
+}
+
+.timer-controls {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+}
+
+body.dark-theme .timer-card {
+  background: linear-gradient(180deg, rgba(8, 12, 20, 0.55), rgba(8, 12, 20, 0.44));
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.form-card {
+  grid-column: 1 / 8;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(245, 248, 255, 0.96));
+  border: 1px solid rgba(55, 81, 255, 0.06);
+  padding: 20px;
+}
+
+.right-column {
+  grid-column: 8 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.logs-card {
+  grid-column: 1 / -1;
+}
+
+.analytics-card {
+  grid-column: 1 / -1;
+  margin-top: 12px;
+}
+
+.subject-totals {
+  list-style: none;
+  padding: 8px 12px;
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.subject-totals li {
+  background: linear-gradient(90deg, rgba(245, 245, 255, 0.7), rgba(250, 250, 255, 0.9));
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+
+.stats-extended-card {
+  grid-column: 1 / -1;
+  margin-top: 12px;
+  padding: 16px;
+}
+
+.goal-row {
+  display: flex;
+  gap: 18px;
+  align-items: flex-start;
+}
+
+.goal-controls input {
+  width: 120px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.06);
+}
+
+.goal-controls .btn {
+  padding: 8px 10px;
+}
+
+.goal-stats {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.goal-bar {
+  height: 12px;
+  width: 240px;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.goal-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #ffd953, #ffcc33);
+  width: 0%;
+  transition: width .4s ease;
+}
+
+/* Productivity score styles */
+.productivity-row {
+  margin-top: 12px;
+}
+
+.productivity-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+#productivity-text {
+  font-weight: 800;
+}
+
+.prod-bar {
+  height: 14px;
+  width: 100%;
+  background: rgba(0, 0, 0, 0.06);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.prod-fill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #7fb3ff, #3751ff);
+  transition: width .6s ease;
+}
+
+/* Heatmap (30-day) */
+.heatmap-card {
+  margin-top: 12px;
+}
+
+.study-heatmap {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  max-width: 420px;
+}
+
+.heatmap-day {
+  width: 28px;
+  height: 28px;
+  position: relative;
+  border-radius: 4px;
+  background: #e6e9ef;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.heatmap-day .day-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.heatmap-day.level-0 {
+  background: #eee;
+  color: #111;
+}
+
+.heatmap-day.level-1 {
+  background: #d7f5d8;
+  color: #111;
+}
+
+.heatmap-day.level-2 {
+  background: #86d68f;
+  color: #111;
+}
+
+.heatmap-day.level-3 {
+  background: #247a2d;
+  color: #fff;
+}
+
+.heatmap-month {
+  font-size: 12px;
+  color: var(--muted);
+  margin-left: 8px;
+  font-weight: 600;
+}
+
+.heatmap-tooltip {
+  position: fixed;
+  background: #111827;
+  color: #fff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  pointer-events: none;
+  z-index: 9999;
+  box-shadow: 0 6px 20px rgba(2, 6, 23, 0.3);
+}
+
+#weekly-chart {
+  width: 100%;
+  max-width: 900px;
+}
+
+.stats-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 18px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  margin-top: 8px;
+}
+
+/* Form styles */
+form label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 15px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"] {
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid rgba(30, 40, 60, 0.06);
+  background: linear-gradient(180deg, rgba(250, 252, 255, 1), rgba(245, 249, 255, 0.9));
+  font-size: 15px;
+  color: var(--text);
+  box-shadow: 0 6px 18px rgba(50, 60, 80, 0.03) inset;
+  transition: box-shadow .18s ease, transform .12s ease, border-color .12s ease;
+}
+
+input::placeholder {
+  color: #9aa6b2;
+}
+
+input:focus {
+  outline: none;
+  transform: translateY(-2px);
+  box-shadow: 0 14px 30px rgba(55, 81, 255, 0.10);
+  border-color: rgba(55, 81, 255, 0.18);
+}
+
+/* Dark theme inputs */
+body.dark-theme .form-card {
+  background: linear-gradient(180deg, rgba(8, 12, 20, 0.55), rgba(8, 12, 20, 0.44));
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+body.dark-theme input[type="text"],
+body.dark-theme input[type="number"],
+body.dark-theme input[type="date"] {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: var(--text);
+  box-shadow: none;
+}
+
+.form-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.btn {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: transform .12s ease, background .12s ease, box-shadow .12s ease;
+}
+
+.btn.theme-toggle {
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 2px solid rgba(0, 0, 0, 0.06);
+  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn.primary {
+  background: linear-gradient(90deg, #ffd953, #ffcf3e);
+  color: #2b2b2b;
+  box-shadow: 0 10px 22px rgba(255, 200, 60, 0.12);
+  padding: 12px 16px;
+  font-weight: 700;
+  border: 1px solid rgba(0, 0, 0, 0.04);
+}
+
+.btn.primary:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 18px 36px rgba(255, 190, 60, 0.18);
+}
+
+/* Dark theme variant for yellow button (slightly muted) */
+body.dark-theme .btn.primary {
+  background: linear-gradient(90deg, #ffcc66, #e6b800);
+  color: #0b1220;
+  box-shadow: 0 10px 22px rgba(230, 184, 0, 0.08);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.logs-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.logs-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 10px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.04);
+}
+
+.log-left {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.log-subject {
+  font-weight: 600;
+}
+
+.log-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.log-actions button {
+  background: transparent;
+  border: 0;
+  color: var(--danger);
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 13px;
+}
+
+.footer {
+  text-align: center;
+  margin-top: 18px;
+}
+
+/* Calendar styles */
+.calendar-card {
+  padding: 12px;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.calendar-month {
+  font-weight: 700;
+}
+
+.calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.calendar .day-name {
+  text-align: center;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.calendar .day {
+  background: transparent;
+  border-radius: 8px;
+  padding: 10px 6px;
+  text-align: center;
+  cursor: pointer;
+  transition: transform .12s ease, background .12s ease;
+}
+
+.calendar .day:hover {
+  transform: translateY(-4px);
+}
+
+.calendar .day.today {
+  box-shadow: inset 0 0 0 2px rgba(55, 81, 255, 0.14);
+}
+
+.calendar .day.selected {
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
+  color: #fff;
+}
+
+.calendar .day.has-log::after {
+  content: "";
+  display: block;
+  width: 6px;
+  height: 6px;
+  background: var(--accent-2);
+  margin: 6px auto 0;
+  border-radius: 50%;
+}
+
+/* small screens */
+@media (max-width: 860px) {
+  .form-card {
+    grid-column: 1 / -1;
+  }
+
+  .right-column {
+    grid-column: 1 / -1;
+    flex-direction: row;
+    gap: 12px;
+  }
+
+  .right-column .card {
+    flex: 1;
+  }
+}
+
+@media (max-width: 520px) {
+  .calendar .day {
+    padding: 8px 4px;
+  }
+}
+
+/* Solar system animation styles (for the small animation under the form) */
+.solar-wrapper {
+  margin-top: 14px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Larger solar system */
+.solar-system {
+  width: 340px;
+  height: 200px;
+  position: relative;
+}
+
+.solar-system.large {
+  width: 360px;
+  height: 240px;
+}
+
+.sun {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 32px;
+  filter: drop-shadow(0 8px 22px rgba(255, 165, 0, 0.14));
+}
+
+.orbit {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform-origin: center;
+  border-radius: 50%;
+}
+
+.orbit-1 {
+  width: 60px;
+  height: 60px;
+  margin-left: -30px;
+  margin-top: -30px;
+  animation: spin 6s linear infinite;
+}
+
+.orbit-2 {
+  width: 110px;
+  height: 110px;
+  margin-left: -55px;
+  margin-top: -55px;
+  animation: spin 10s linear infinite reverse;
+}
+
+.orbit-3 {
+  width: 160px;
+  height: 160px;
+  margin-left: -80px;
+  margin-top: -80px;
+  animation: spin 16s linear infinite;
+}
+
+.planet {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  left: 100%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.14);
+}
+
+.p1 {
+  background: #9ccf7e;
+}
+
+.p2 {
+  background: #7fb3ff;
+}
+
+.p3 {
+  background: #ffb57a;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Dropping stars animation */
+.stars {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.star {
+  position: absolute;
+  top: -10%;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+  opacity: 0;
+  transform: translateY(0);
+}
+
+.star.s1 {
+  left: 10%;
+  animation: fall 4s linear infinite 0s;
+  width: 6px;
+  height: 6px;
+}
+
+.star.s2 {
+  left: 25%;
+  animation: fall 5s linear infinite 0.6s;
+  width: 5px;
+  height: 5px;
+}
+
+.star.s3 {
+  left: 40%;
+  animation: fall 4.6s linear infinite 1.2s;
+  width: 7px;
+  height: 7px;
+}
+
+.star.s4 {
+  left: 60%;
+  animation: fall 5.4s linear infinite 0.2s;
+  width: 5px;
+  height: 5px;
+}
+
+.star.s5 {
+  left: 75%;
+  animation: fall 4.2s linear infinite 0.9s;
+  width: 6px;
+  height: 6px;
+}
+
+.star.s6 {
+  left: 85%;
+  animation: fall 5.8s linear infinite 0.3s;
+  width: 4px;
+  height: 4px;
+}
+
+@keyframes fall {
+  0% {
+    transform: translateY(-8%);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(120%);
+    opacity: 0;
+  }
+}
+
+/* Make theme toggle more visible on dark */
+body.dark-theme .btn.theme-toggle {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+/* Full-page falling stars overlay */
+.falling-stars-overlay {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+  /* behind app content */
+  overflow: hidden;
+}
+
+.falling-stars-overlay .fstar {
+  position: absolute;
+  top: -5vh;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  /* default: dark grey for light theme (user requested) */
+  background: rgba(75, 85, 99, 0.9);
+  /* #4b5563 */
+  box-shadow: none;
+  transform: translateX(0) rotate(0deg);
+  opacity: 0.8;
+}
+
+.falling-stars-overlay .f1 {
+  left: 5%;
+  animation: fallDiag 6s linear infinite 0s;
+}
+
+.falling-stars-overlay .f2 {
+  left: 18%;
+  animation: fallDiag 7s linear infinite 0.6s;
+  width: 5px;
+  height: 5px;
+}
+
+.falling-stars-overlay .f3 {
+  left: 30%;
+  animation: fallDiag 8s linear infinite 1.2s;
+}
+
+.falling-stars-overlay .f4 {
+  left: 42%;
+  animation: fallDiag 6.5s linear infinite 0.3s;
+}
+
+.falling-stars-overlay .f5 {
+  left: 55%;
+  animation: fallDiag 7.8s linear infinite 0.9s;
+}
+
+.falling-stars-overlay .f6 {
+  left: 68%;
+  animation: fallDiag 9s linear infinite 0.1s;
+}
+
+.falling-stars-overlay .f7 {
+  left: 80%;
+  animation: fallDiag 6.2s linear infinite 0.5s;
+}
+
+.falling-stars-overlay .f8 {
+  left: 12%;
+  animation: fallDiag 10s linear infinite 1.5s;
+}
+
+.falling-stars-overlay .f9 {
+  left: 24%;
+  animation: fallDiag 5.8s linear infinite 0.2s;
+}
+
+.falling-stars-overlay .f10 {
+  left: 36%;
+  animation: fallDiag 7.6s linear infinite 0.7s;
+}
+
+.falling-stars-overlay .f11 {
+  left: 60%;
+  animation: fallDiag 8.4s linear infinite 0.4s;
+}
+
+.falling-stars-overlay .f12 {
+  left: 90%;
+  animation: fallDiag 6.9s linear infinite 0.9s;
+}
+
+@keyframes fallDiag {
+
+  /* start near top (using element's left position), then fall down-left and rotate counter-clockwise */
+  0% {
+    transform: translateY(-5vh) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateY(120vh) translateX(-30vw) rotate(-360deg);
+    opacity: 0;
+  }
+}
+
+/* Bright stars in dark theme */
+body.dark-theme .falling-stars-overlay .fstar {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.9);
+  opacity: 1;
+}
+
+/* Prefer reduced motion: simplify animations */
+@media (prefers-reduced-motion: reduce) {
+
+  .falling-stars-overlay .fstar,
+  .solar-system .orbit {
+    animation: none !important;
+    opacity: 0.9;
+  }
+}
+
+/* Ensure app content stacks above overlay */
+.container {
+  position: relative;
+  z-index: 2;
+}
