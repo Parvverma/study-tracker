@@ -12,6 +12,7 @@
 	const STORAGE_KEY = 'study-tracker-logs-v1';
 	const THEME_KEY = 'study-tracker-theme-v1';
 	const GOAL_KEY = 'study-tracker-goal-v1';
+	const TASKS_KEY = 'study-tracker-tasks-v1';
 
 	// DOM elements (assumes script loaded after DOM or elements exist)
 	const el = {
@@ -42,7 +43,17 @@
 		timerDisplay: document.getElementById('timer-display'),
 		timerStart: document.getElementById('timer-start'),
 		timerPause: document.getElementById('timer-pause'),
-		timerReset: document.getElementById('timer-reset')
+		timerReset: document.getElementById('timer-reset'),
+		taskForm: document.getElementById('task-form'),
+		taskTitle: document.getElementById('task-title'),
+		taskSubject: document.getElementById('task-subject'),
+		taskPriority: document.getElementById('task-priority'),
+		taskDueDate: document.getElementById('task-due-date'),
+		taskList: document.getElementById('task-list'),
+		statTotalTasks: document.getElementById('stat-total-tasks'),
+		statCompletedTasks: document.getElementById('stat-completed-tasks'),
+		statCompletionPct: document.getElementById('stat-completion-pct'),
+		statOverdueTasks: document.getElementById('stat-overdue-tasks')
 	};
 
 	// ----------------------
@@ -96,6 +107,9 @@
 	function loadGoal() { const raw = localStorage.getItem(GOAL_KEY); return raw ? Number(raw) : 0; }
 	function saveGoal(v) { localStorage.setItem(GOAL_KEY, String(Number(v) || 0)); }
 
+	function loadTasks() { try { const raw = localStorage.getItem(TASKS_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
+	function saveTasks(t) { localStorage.setItem(TASKS_KEY, JSON.stringify(t)); }
+
 	// ----------------------
 	// Core data operations
 	// ----------------------
@@ -110,6 +124,12 @@
 		};
 		logs.push(entry);
 		saveLogs(logs);
+
+		// Push the newly created log to Firebase silently in background
+		if (window.saveToFirebase) {
+			window.saveToFirebase(entry);
+		}
+
 		render();
 	}
 
@@ -218,12 +238,17 @@
 		const minutesToday = logsForDate(todayISO).reduce((s, l) => s + Number(l.minutes || 0), 0);
 		const dailyPct = dailyGoal > 0 ? Math.min(100, Math.round((minutesToday / dailyGoal) * 100)) : 0;
 
+		const tasks = loadTasks();
+		const totalT = tasks.length;
+		const compT = tasks.filter(t => t.completed).length;
+		const taskPct = totalT > 0 ? (compT / totalT) : 0;
+
 		// Apply formula
 		let score = 0;
-		if (weeklyGoal > 0) score += (totalWeekly / weeklyGoal) * 50;
-		// else leave the weekly component at 0
+		if (weeklyGoal > 0) score += (totalWeekly / weeklyGoal) * 40;
 		score += (streak * 5);
-		score += (dailyPct * 0.5);
+		score += (dailyPct * 0.4);
+		score += (taskPct * 20);
 
 		// Cap and round
 		score = Math.round(Math.min(100, score));
@@ -374,6 +399,98 @@
 		renderGoal();
 		renderProductivityScore();
 		renderHeatmap();
+		renderTasks();
+	}
+
+	// ----------------------
+	// Tasks rendering
+	// ----------------------
+	function addTask({ title, subject, priority, dueDate }) {
+		const tasks = loadTasks();
+		tasks.push({
+			id: genId(),
+			title: title.trim(),
+			subject: subject.trim(),
+			priority,
+			dueDate,
+			completed: false,
+			createdAt: new Date().toISOString()
+		});
+		saveTasks(tasks);
+		renderTasks();
+		renderProductivityScore();
+	}
+
+	function toggleTaskComplete(id) {
+		const tasks = loadTasks();
+		const t = tasks.find(x => x.id === id);
+		if (t) {
+			t.completed = !t.completed;
+			saveTasks(tasks);
+			renderTasks();
+			renderProductivityScore();
+		}
+	}
+
+	function deleteTask(id) {
+		const tasks = loadTasks();
+		saveTasks(tasks.filter(t => t.id !== id));
+		renderTasks();
+		renderProductivityScore();
+	}
+
+	function renderTasks() {
+		if (!el.taskList) return;
+		const tasks = loadTasks();
+		el.taskList.innerHTML = '';
+
+		let total = tasks.length;
+		let completed = 0;
+		let overdue = 0;
+		const todayISO = toISODate(new Date());
+
+		tasks.sort((a, b) => {
+			if (a.completed !== b.completed) return a.completed ? 1 : -1;
+			return new Date(a.dueDate) - new Date(b.dueDate);
+		});
+
+		tasks.forEach(t => {
+			if (t.completed) completed++;
+			const isOverdue = !t.completed && t.dueDate < todayISO;
+			if (isOverdue) overdue++;
+
+			const li = document.createElement('li');
+			li.className = `task-item ${t.completed ? 'completed' : ''}`;
+			const statusBadge = t.completed ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending');
+
+			li.innerHTML = `
+				<div class="task-left">
+					<div class="task-controls">
+						<input type="checkbox" onchange="window._studyTracker.toggleTask('${t.id}')" ${t.completed ? 'checked' : ''} />
+					</div>
+					<div class="task-details">
+						<div class="task-title">
+							${t.title} 
+							<span class="status-badge ${isOverdue && !t.completed ? 'danger-text' : ''}">${statusBadge}</span>
+						</div>
+						<div class="task-meta">
+							<span class="task-priority-indicator prio-${t.priority.toLowerCase()}">${t.priority}</span>
+							${t.subject ? `<span>📁 ${t.subject}</span>` : ''}
+							<span class="${isOverdue && !t.completed ? 'danger-text' : ''}">📅 ${t.dueDate}</span>
+						</div>
+					</div>
+				</div>
+				<div class="task-actions log-actions">
+					<button title="Delete Task" onclick="window._studyTracker.deleteTask('${t.id}')">🗑️</button>
+				</div>
+			`;
+			el.taskList.appendChild(li);
+		});
+
+		if (el.statTotalTasks) el.statTotalTasks.textContent = total;
+		if (el.statCompletedTasks) el.statCompletedTasks.textContent = completed;
+		if (el.statCompletionPct) el.statCompletionPct.textContent = total > 0 ? Math.round((completed / total) * 100) + '%' : '0%';
+		if (el.statOverdueTasks) el.statOverdueTasks.textContent = overdue;
 	}
 
 	// ----------------------
@@ -617,6 +734,20 @@
 		if (el.minutesInput) el.minutesInput.value = '';
 	});
 
+	if (el.taskForm) {
+		el.taskForm.addEventListener('submit', (e) => {
+			e.preventDefault();
+			const title = el.taskTitle.value;
+			const subject = el.taskSubject.value;
+			const priority = el.taskPriority.value;
+			const dueDate = el.taskDueDate.value;
+			if (!title || !dueDate) return;
+			addTask({ title, subject, priority, dueDate });
+			el.taskTitle.value = '';
+			el.taskSubject.value = '';
+		});
+	}
+
 	// ensure calendar shows current month and initial render
 	calCursor = new Date();
 	renderCalendar();
@@ -624,6 +755,6 @@
 	loadTimerState();
 
 	// expose debug API
-	window._studyTracker = { loadLogs, saveLogs, addLog, deleteLog, calculateStreak };
+	window._studyTracker = { loadLogs, saveLogs, addLog, deleteLog, calculateStreak, toggleTask: toggleTaskComplete, deleteTask, render };
 
 })();

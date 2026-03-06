@@ -27,18 +27,21 @@
 		<div class="fstar f11"></div>
 		<div class="fstar f12"></div>
 	</div>
+	<!-- Top Right Moon Icon -->
+	<div class="top-right-moon" aria-hidden="true">🌙</div>
 	<!-- Floating site header (centered, 80% width) -->
 	<header class="site-header" role="banner">
 		<div class="site-header-inner">
 			<div class="header-left-name">
 				<img src="assets/Study_tracker_logo.png" alt="logo" class="site-logo" />
-				<span>Parv verma</span>
+				<span id="user-display-name">Parv verma</span>
 			</div>
 			<div class="header-center-title">Study Tracker</div>
 			<div class="site-actions">
 				<button id="download-report" class="btn" title="Download Report">📥 Download Report</button>
+				<button id="auth-btn" class="btn primary" title="Login / Signup">🔑 Login</button>
 				<button id="theme-toggle" class="btn theme-toggle" title="Toggle theme"
-					aria-label="Toggle dark light theme">🌗</button>
+				aria-label="Toggle dark light theme">🌗</button>
 			</div>
 		</div>
 	</header>
@@ -143,6 +146,45 @@
 				<button id="timer-reset" class="btn">Reset</button>
 			</div>
 		</div>
+
+		<!-- To-Do System -->
+		<section class="grid" style="margin-bottom: 16px;">
+			<div class="card form-card" style="grid-column: 1 / 9;">
+				<h3>📝 Tasks</h3>
+				<form id="task-form">
+					<div class="form-row" style="display: flex; gap: 12px; margin-bottom: 12px;">
+						<input type="text" id="task-title" placeholder="What needs to be done?" required
+							style="flex: 2" />
+						<input type="text" id="task-subject" placeholder="Subject (optional)" style="flex: 1" />
+					</div>
+					<div class="form-row" style="display: flex; gap: 12px; margin-bottom: 12px;">
+						<select id="task-priority" class="styled-select" style="flex: 1" required>
+							<option value="Low">Low Priority</option>
+							<option value="Medium" selected>Medium Priority</option>
+							<option value="High">High Priority</option>
+						</select>
+						<input type="date" id="task-due-date" style="flex: 1" required />
+						<button type="submit" class="btn primary" style="flex: 1">➕ Add Task</button>
+					</div>
+				</form>
+				<ul id="task-list" class="task-list"></ul>
+			</div>
+
+			<div class="card stats-card" style="grid-column: 9 / -1;">
+				<h3>📋 Task Stats</h3>
+				<div style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
+					<div>Total Tasks: <span id="stat-total-tasks" class="stat-value"
+							style="font-size: 20px; display: inline-block; margin-left: 8px;">0</span></div>
+					<div>Completed: <span id="stat-completed-tasks" class="stat-value"
+							style="font-size: 20px; display: inline-block; margin-left: 8px;">0</span></div>
+					<div>Completion: <span id="stat-completion-pct" class="stat-value"
+							style="font-size: 20px; display: inline-block; margin-left: 8px;">0%</span></div>
+					<div>Overdue: <span id="stat-overdue-tasks" class="danger-text stat-value"
+							style="font-size: 20px; display: inline-block; margin-left: 8px;">0</span></div>
+				</div>
+			</div>
+		</section>
+
 		<section class="grid">
 			<!-- Subject-wise analytics -->
 			<div class="card analytics-card">
@@ -191,13 +233,168 @@
 		</section>
 
 		<footer class="footer muted small">
-			Data stored locally in your browser. No accounts, no backend.
-		</footer>
+			<footer class="footer muted small">
+				Data stored locally in your browser. Sessions synced to Firebase when logged in.
+			</footer>
 	</main>
+
+	<!-- Username Modal Overlay -->
+	<div id="username-modal" class="modal-overlay" style="display: none;">
+		<div class="modal-content card">
+			<h3 style="margin-top:0;">Welcome!</h3>
+			<p>Please enter your display name to continue.</p>
+			<form id="username-form">
+				<label>Display Name
+					<input type="text" id="username-input" required placeholder="e.g. Parv Verma" />
+				</label>
+				<div class="form-actions" style="margin-top: 18px;">
+					<button type="submit" class="btn primary" style="width: 100%;">Save Setup</button>
+				</div>
+			</form>
+		</div>
+	</div>
 
 	<!-- Analytics section scripts -->
 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 	<script src="script.js" defer></script>
+	<script type="module">
+		import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+		import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
+		import { getFirestore, collection, addDoc, doc, getDoc, setDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+		import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+
+		// Your web app's Firebase configuration
+		const firebaseConfig = {
+			apiKey: "AIzaSyB8mh6id_uXg4Xa0ldviRN6qokO1nSyu4g",
+			authDomain: "studytracker-99caa.firebaseapp.com",
+			projectId: "studytracker-99caa",
+			storageBucket: "studytracker-99caa.firebasestorage.app",
+			messagingSenderId: "930702749372",
+			appId: "1:930702749372:web:e930cd84e5aeb3b7852ab9",
+			measurementId: "G-37BPKV2J3B"
+		};
+
+		// Initialize Firebase
+		const app = initializeApp(firebaseConfig);
+		const analytics = getAnalytics(app);
+		const db = getFirestore(app);
+		const auth = getAuth(app);
+		const provider = new GoogleAuthProvider();
+
+		// UI Elements
+		const authBtn = document.getElementById('auth-btn');
+		const userDisplayName = document.getElementById('user-display-name');
+		const usernameModal = document.getElementById('username-modal');
+		const usernameForm = document.getElementById('username-form');
+		let currentUser = null;
+
+		// Session Management
+		onAuthStateChanged(auth, async (user) => {
+			if (user) {
+				currentUser = user;
+				authBtn.textContent = '🚪 Logout';
+				authBtn.classList.remove('primary');
+
+				// Check if user has a username
+				const userRef = doc(db, 'users', user.uid);
+				const userSnap = await getDoc(userRef);
+
+				if (userSnap.exists() && userSnap.data().username) {
+					userDisplayName.textContent = userSnap.data().username;
+					await fetchUserData(user.uid);
+				} else {
+					usernameModal.style.display = 'flex';
+				}
+			} else {
+				currentUser = null;
+				authBtn.textContent = '🔑 Login with Google';
+				authBtn.classList.add('primary');
+				userDisplayName.textContent = 'Guest';
+			}
+		});
+
+		// Login/Logout Button
+		authBtn.addEventListener('click', () => {
+			if (currentUser) {
+				signOut(auth).then(() => {
+					alert('Logged out successfully!');
+					location.reload();
+				});
+			} else {
+				signInWithPopup(auth, provider).catch(error => {
+					console.error(error);
+					alert(error.message);
+				});
+			}
+		});
+
+		// Username Setup Form
+		usernameForm.addEventListener('submit', async (e) => {
+			e.preventDefault();
+			const name = document.getElementById('username-input').value.trim();
+			if (!name) return;
+
+			try {
+				const userRef = doc(db, 'users', currentUser.uid);
+				await setDoc(userRef, {
+					username: name,
+					email: currentUser.email,
+					createdAt: serverTimestamp()
+				}, { merge: true });
+
+				usernameModal.style.display = 'none';
+				userDisplayName.textContent = name;
+				await fetchUserData(currentUser.uid);
+			} catch (error) {
+				console.error("Error saving user profile: ", error);
+			}
+		});
+
+		// Fetch logs from Firestore
+		async function fetchUserData(uid) {
+			if (!window._studyTracker) return;
+
+			try {
+				const q = query(collection(db, 'study_sessions'), where('userId', '==', uid));
+				const querySnapshot = await getDocs(q);
+
+				const logs = [];
+				querySnapshot.forEach((docSnap) => {
+					const data = docSnap.data();
+					// Ensure format exactly matches script.js logic locally
+					logs.push({
+						id: docSnap.id, // Replace local ID logic with Firebase Doc ID
+						subject: data.subject || '',
+						minutes: data.minutes || 0,
+						date: data.date,
+						createdAt: data.createdAt || new Date().toISOString()
+					});
+				});
+
+				// Overwrite local storage with fetched data to sync perfectly
+				window._studyTracker.saveLogs(logs);
+
+				// Force render UI
+				if (window._studyTracker.render) {
+					window._studyTracker.render();
+				}
+			} catch (e) {
+				console.error('Failed fetching existing data: ', e);
+			}
+		}
+
+		// Expose function globally so script.js can save new entries easily
+		window.saveToFirebase = async function (logEntry) {
+			if (!currentUser) return; // Only save to cloud if authenticated
+			logEntry.userId = currentUser.uid;
+			logEntry.createdAt = new Date().toISOString();
+			try {
+				await addDoc(collection(db, "study_sessions"), logEntry);
+			} catch (e) {
+				console.error("Error saving session to Firebase: ", e);
+			}
+		};
+	</script>
 </body>
 
 </html>
