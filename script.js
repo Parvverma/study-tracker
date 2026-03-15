@@ -13,6 +13,8 @@
 	const THEME_KEY = 'study-tracker-theme-v1';
 	const GOAL_KEY = 'study-tracker-goal-v1';
 	const TASKS_KEY = 'study-tracker-tasks-v1';
+	const DAILY_TASKS_KEY = 'study-tracker-daily-tasks-v1';
+	const DAILY_TASKS_DATE_KEY = 'study-tracker-daily-date-v1';
 
 	// DOM elements (assumes script loaded after DOM or elements exist)
 	const el = {
@@ -53,7 +55,17 @@
 		statTotalTasks: document.getElementById('stat-total-tasks'),
 		statCompletedTasks: document.getElementById('stat-completed-tasks'),
 		statCompletionPct: document.getElementById('stat-completion-pct'),
-		statOverdueTasks: document.getElementById('stat-overdue-tasks')
+		statOverdueTasks: document.getElementById('stat-overdue-tasks'),
+		dailyTaskForm: document.getElementById('daily-task-form'),
+		dailyTaskTitle: document.getElementById('daily-task-title'),
+		dailyTaskList: document.getElementById('daily-task-list'),
+		timerFocusBtn: document.getElementById('timer-focus-mode'),
+		focusOverlay: document.getElementById('focus-mode-overlay'),
+		focusTimerLarge: document.getElementById('focus-timer-large'),
+		focusDurationBtn: document.getElementById('focus-duration-btn'),
+		focusBtnStart: document.getElementById('focus-btn-start'),
+		focusBtnPause: document.getElementById('focus-btn-pause'),
+		focusBtnExit: document.getElementById('focus-btn-exit')
 	};
 
 	// ----------------------
@@ -109,6 +121,9 @@
 
 	function loadTasks() { try { const raw = localStorage.getItem(TASKS_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
 	function saveTasks(t) { localStorage.setItem(TASKS_KEY, JSON.stringify(t)); }
+
+	function loadDailyTasks() { try { const raw = localStorage.getItem(DAILY_TASKS_KEY); return raw ? JSON.parse(raw) : []; } catch (e) { return []; } }
+	function saveDailyTasks(t) { localStorage.setItem(DAILY_TASKS_KEY, JSON.stringify(t)); }
 
 	// ----------------------
 	// Core data operations
@@ -400,6 +415,7 @@
 		renderProductivityScore();
 		renderHeatmap();
 		renderTasks();
+		if (typeof renderDailyTasks === 'function') renderDailyTasks();
 	}
 
 	// ----------------------
@@ -494,6 +510,83 @@
 	}
 
 	// ----------------------
+	// Daily Tasks logic
+	// ----------------------
+	function checkAndResetDailyTasks() {
+		const todayISO = toISODate(new Date());
+		const lastDate = localStorage.getItem(DAILY_TASKS_DATE_KEY);
+		if (lastDate !== todayISO) {
+			const dTasks = loadDailyTasks();
+			let changed = false;
+			dTasks.forEach(t => {
+				if (t.completed) {
+					t.completed = false;
+					changed = true;
+				}
+			});
+			if (changed) saveDailyTasks(dTasks);
+			localStorage.setItem(DAILY_TASKS_DATE_KEY, todayISO);
+		}
+	}
+
+	function addDailyTask(title) {
+		const tasks = loadDailyTasks();
+		tasks.push({
+			id: genId(),
+			title: title.trim(),
+			completed: false,
+			createdAt: new Date().toISOString()
+		});
+		saveDailyTasks(tasks);
+		renderDailyTasks();
+		renderProductivityScore();
+	}
+
+	function toggleDailyTaskComplete(id) {
+		const tasks = loadDailyTasks();
+		const t = tasks.find(x => x.id === id);
+		if (t) {
+			t.completed = !t.completed;
+			saveDailyTasks(tasks);
+			renderDailyTasks();
+			renderProductivityScore();
+		}
+	}
+
+	function deleteDailyTask(id) {
+		const tasks = loadDailyTasks();
+		saveDailyTasks(tasks.filter(t => t.id !== id));
+		renderDailyTasks();
+		renderProductivityScore();
+	}
+
+	function renderDailyTasks() {
+		if (!el.dailyTaskList) return;
+		const tasks = loadDailyTasks();
+		el.dailyTaskList.innerHTML = '';
+
+		tasks.forEach(t => {
+			const li = document.createElement('li');
+			li.className = `task-item ${t.completed ? 'completed' : ''}`;
+
+			li.innerHTML = `
+				<div class="task-left">
+					<div class="task-controls">
+						<input type="checkbox" onchange="window._studyTracker.toggleDailyTask('${t.id}')" ${t.completed ? 'checked' : ''} />
+					</div>
+					<div class="task-details">
+						<div class="task-title">${t.title}</div>
+					</div>
+				</div>
+				<div class="task-actions log-actions">
+					<button title="Delete Daily Task" onclick="window._studyTracker.deleteDailyTask('${t.id}')">🗑️</button>
+				</div>
+			`;
+			el.dailyTaskList.appendChild(li);
+		});
+	}
+
+	// ----------------------
 	// Calendar
 	// ----------------------
 	function firstDayOfMonth(d) { return new Date(d.getFullYear(), d.getMonth(), 1); }
@@ -536,9 +629,9 @@
 	// ----------------------
 
 	// ----------------------
-	// Focus Timer
+	// Focus Timer & Zen Mode
 	// ----------------------
-	const TIMER_DURATION = 25 * 60; // 25 mins in seconds
+	let TIMER_DURATION = 25 * 60; // 25 mins in seconds
 	let timerInterval = null;
 	let timerRemaining = TIMER_DURATION;
 	let timerEndTime = null;
@@ -550,7 +643,17 @@
 	}
 
 	function renderTimer() {
-		if (el.timerDisplay) el.timerDisplay.textContent = formatTime(timerRemaining);
+		const formatted = formatTime(timerRemaining);
+		if (el.timerDisplay) el.timerDisplay.textContent = formatted;
+		if (el.focusTimerLarge) el.focusTimerLarge.textContent = formatted;
+
+		if (timerInterval) {
+			if (el.focusBtnStart) el.focusBtnStart.style.display = 'none';
+			if (el.focusBtnPause) el.focusBtnPause.style.display = 'block';
+		} else {
+			if (el.focusBtnStart) el.focusBtnStart.style.display = 'block';
+			if (el.focusBtnPause) el.focusBtnPause.style.display = 'none';
+		}
 	}
 
 	function tickTimer() {
@@ -580,6 +683,7 @@
 
 		timerInterval = setInterval(tickTimer, 1000);
 		saveTimerState();
+		renderTimer();
 	}
 
 	function pauseTimer() {
@@ -588,6 +692,7 @@
 			timerInterval = null;
 			timerEndTime = null;
 			saveTimerState();
+			renderTimer();
 		}
 	}
 
@@ -610,10 +715,19 @@
 
 		// Auto log
 		const subject = el.subjectInput && el.subjectInput.value.trim() ? el.subjectInput.value.trim() : 'Focus Session';
-		addLog({ subject, minutes: 25, date: toISODate(new Date()) });
+		const loggedMins = Math.round(TIMER_DURATION / 60);
+		addLog({ subject, minutes: loggedMins, date: toISODate(new Date()) });
 
 		setTimeout(() => {
-			alert('Focus session complete! 25 minutes logged.');
+			if (confirm(`Focus session completed! ${loggedMins} minutes logged.\n\nWould you like to take a 5-minute break?`)) {
+				TIMER_DURATION = 5 * 60;
+				resetTimer();
+				startTimer();
+			} else {
+				TIMER_DURATION = 25 * 60;
+				resetTimer();
+				exitFocusMode();
+			}
 		}, 100);
 	}
 
@@ -644,6 +758,7 @@
 		const state = {
 			timerRemaining,
 			timerEndTime,
+			TIMER_DURATION,
 			isRunning: !!timerInterval
 		};
 		localStorage.setItem('study-tracker-timer-v1', JSON.stringify(state));
@@ -662,14 +777,17 @@
 					if (diff <= 0) {
 						// It finished while away
 						timerRemaining = 0;
+						TIMER_DURATION = state.TIMER_DURATION || (25 * 60);
 						completeTimer();
 						return;
 					} else {
+						TIMER_DURATION = state.TIMER_DURATION || (25 * 60);
 						timerRemaining = diff;
 						timerEndTime = state.timerEndTime;
 						startTimer();
 					}
 				} else {
+					TIMER_DURATION = state.TIMER_DURATION || (25 * 60);
 					timerRemaining = state.timerRemaining || TIMER_DURATION;
 				}
 			}
@@ -681,7 +799,72 @@
 
 	if (el.timerStart) el.timerStart.addEventListener('click', startTimer);
 	if (el.timerPause) el.timerPause.addEventListener('click', pauseTimer);
-	if (el.timerReset) el.timerReset.addEventListener('click', resetTimer);
+	if (el.timerReset) el.timerReset.addEventListener('click', () => { TIMER_DURATION = 25 * 60; resetTimer(); });
+
+	// Focus Mode Features
+	function enterFocusMode() {
+		if (el.focusOverlay) {
+			el.focusOverlay.style.display = 'flex';
+			document.body.style.overflow = 'hidden';
+			setTimeout(() => el.focusOverlay.classList.add('active'), 10);
+			if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+				document.documentElement.requestFullscreen().catch(err => console.error(err));
+			}
+		}
+	}
+
+	function exitFocusMode() {
+		if (el.focusOverlay) {
+			el.focusOverlay.classList.remove('active');
+			document.body.style.overflow = '';
+			setTimeout(() => el.focusOverlay.style.display = 'none', 500);
+			if (document.fullscreenElement && document.exitFullscreen) {
+				document.exitFullscreen().catch(err => console.error(err));
+			}
+		}
+	}
+
+	if (el.timerFocusBtn) el.timerFocusBtn.addEventListener('click', enterFocusMode);
+	if (el.focusBtnExit) el.focusBtnExit.addEventListener('click', exitFocusMode);
+	if (el.focusBtnStart) el.focusBtnStart.addEventListener('click', startTimer);
+	if (el.focusBtnPause) el.focusBtnPause.addEventListener('click', pauseTimer);
+
+	if (el.focusDurationBtn) {
+		el.focusDurationBtn.addEventListener('click', () => {
+			const input = prompt("Set timer duration (in minutes):", Math.round(TIMER_DURATION / 60));
+			const minutes = Number(input);
+			if (minutes > 0 && minutes <= 300) {
+				TIMER_DURATION = minutes * 60;
+				resetTimer();
+			} else if (input !== null) {
+				alert("Please enter a valid number of minutes (1-300).");
+			}
+		});
+	}
+
+	// Focus Mode Keyboard Shortcuts
+	document.addEventListener('keydown', (e) => {
+		if (el.focusOverlay && el.focusOverlay.classList.contains('active')) {
+			const activeTag = document.activeElement ? document.activeElement.tagName.toLowerCase() : '';
+			const isTyping = (activeTag === 'input' || activeTag === 'textarea');
+
+			if (e.key === 'Escape') {
+				e.preventDefault();
+				exitFocusMode();
+			} else if (e.key.toLowerCase() === 'f' && !isTyping) {
+				e.preventDefault();
+				if (!document.fullscreenElement) {
+					if (document.documentElement.requestFullscreen) {
+						document.documentElement.requestFullscreen().catch(err => console.error(err));
+					}
+				} else {
+					if (document.exitFullscreen) {
+						document.exitFullscreen().catch(err => console.error(err));
+					}
+				}
+			}
+		}
+	});
 
 	if (el.calPrev) el.calPrev.addEventListener('click', () => { calCursor.setMonth(calCursor.getMonth() - 1); renderCalendar(); });
 	if (el.calNext) el.calNext.addEventListener('click', () => { calCursor.setMonth(calCursor.getMonth() + 1); renderCalendar(); });
@@ -748,13 +931,43 @@
 		});
 	}
 
+	if (el.dailyTaskForm) {
+		el.dailyTaskForm.addEventListener('submit', (e) => {
+			e.preventDefault();
+			const title = el.dailyTaskTitle.value;
+			if (!title) return;
+			addDailyTask(title);
+			el.dailyTaskTitle.value = '';
+		});
+	}
+
 	// ensure calendar shows current month and initial render
+	checkAndResetDailyTasks();
 	calCursor = new Date();
 	renderCalendar();
 	render();
 	loadTimerState();
 
 	// expose debug API
-	window._studyTracker = { loadLogs, saveLogs, addLog, deleteLog, calculateStreak, toggleTask: toggleTaskComplete, deleteTask, render };
+	window._studyTracker = { loadLogs, saveLogs, addLog, deleteLog, calculateStreak, toggleTask: toggleTaskComplete, deleteTask, toggleDailyTask: toggleDailyTaskComplete, deleteDailyTask, render };
 
+	// Push Notifications (Firebase)
+	if (typeof firebase !== 'undefined') {
+		const messaging = firebase.messaging();
+
+		Notification.requestPermission()
+			.then((permission) => {
+				if (permission === "granted") {
+					return messaging.getToken({
+						vapidKey: "YOUR_VAPID_KEY" // REPLACE WITH YOUR ACTUAL VAPID KEY
+					});
+				}
+			})
+			.then((token) => {
+				console.log("Device Token:", token);
+			})
+			.catch((err) => {
+				console.log("Error:", err);
+			});
+	}
 })();

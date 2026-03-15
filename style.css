@@ -31,6 +31,7 @@ body.dark-theme {
 html,
 body {
   height: 100%;
+  overflow-x: hidden;
 }
 
 body {
@@ -666,26 +667,209 @@ body.dark-theme .btn.primary {
   border-radius: 50%;
 }
 
-/* small screens */
+/* Responsive adjustments */
+/* Utility classes for task forms */
+.flex-1 {
+  flex: 1;
+}
+
+.flex-2 {
+  flex: 2;
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.task-form-card {
+  grid-column: 1 / 9;
+}
+
+.task-stats-card {
+  grid-column: 9 / -1;
+}
+
+.task-stats-container {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.task-stat-val {
+  font-size: 20px;
+  display: inline-block;
+  margin-left: 8px;
+}
+
+@media (max-width: 960px) {
+  .site-header-inner {
+    padding: 0 12px;
+  }
+
+  .header-left-name {
+    font-size: 18px;
+  }
+
+  .site-logo {
+    width: 50px;
+    height: 50px;
+  }
+
+  .header-center-title {
+    font-size: 18px;
+  }
+}
+
 @media (max-width: 860px) {
-  .form-card {
+
+  .form-card,
+  .task-form-card,
+  .task-stats-card {
     grid-column: 1 / -1;
   }
 
   .right-column {
     grid-column: 1 / -1;
     flex-direction: row;
+    flex-wrap: wrap;
     gap: 12px;
   }
 
   .right-column .card {
-    flex: 1;
+    flex: 1 1 300px;
+  }
+}
+
+@media (max-width: 768px) {
+  .header-center-title {
+    display: none;
+  }
+
+  .site-actions .btn {
+    padding: 8px 10px;
+    font-size: 14px;
+  }
+
+  #download-report {
+    font-size: 0;
+  }
+
+  #download-report::after {
+    content: "📥";
+    font-size: 16px;
+  }
+
+  .timer-display {
+    font-size: 40px;
+  }
+
+  .goal-row {
+    flex-direction: column;
+    gap: 12px;
+  }
+}
+
+@media (max-width: 600px) {
+  .form-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .form-actions .btn {
+    width: 100%;
+  }
+
+  .timer-controls,
+  .goal-controls {
+    flex-wrap: wrap;
+  }
+
+  .timer-controls .btn,
+  .goal-controls input,
+  .goal-controls .btn {
+    width: 100%;
+    margin-bottom: 4px;
+  }
+
+  .goal-bar,
+  .prod-bar {
+    width: 100%;
+  }
+
+  .site-header {
+    height: auto;
+    min-height: 56px;
+    padding: 8px;
+    top: 8px;
+    width: 94%;
+    border-radius: 12px;
+  }
+
+  .site-header-inner {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    padding: 0 4px;
+    gap: 8px;
+  }
+
+  .header-left-name {
+    font-size: 15px;
+  }
+
+  .site-logo {
+    width: 32px;
+    height: 32px;
+  }
+
+  .site-actions {
+    gap: 6px;
+  }
+
+  .site-actions .btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .container {
+    padding-top: 100px;
+  }
+
+  .top-right-moon {
+    top: 80px;
+    right: 12px;
+    font-size: 24px;
   }
 }
 
 @media (max-width: 520px) {
   .calendar .day {
     padding: 8px 4px;
+  }
+
+  .subject-totals {
+    flex-direction: column;
+  }
+
+  .app-header h1 {
+    font-size: 22px;
+  }
+
+  .task-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .task-item .log-actions {
+    align-self: flex-end;
   }
 }
 
@@ -1125,7 +1309,7 @@ body.dark-theme .status-badge {
 /* Top Right Moon Icon */
 .top-right-moon {
   position: fixed;
-  top: 24px;
+  top: 70px;
   right: 28px;
   font-size: 38px;
   z-index: 60;
@@ -1188,4 +1372,150 @@ body.dark-theme .top-right-moon {
     transform: scale(1);
     opacity: 1;
   }
+}
+
+/* Focus Mode Styles */
+.focus-mode-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(15, 23, 42, 0.98);
+  /* Deep slate */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.focus-mode-overlay.active {
+  opacity: 1;
+  pointer-events: all;
+}
+
+.focus-mode-content {
+  text-align: center;
+  width: 100%;
+  max-width: 700px;
+  padding: 40px;
+  animation: focusPop 0.5s cubic-bezier(0.2, 0.9, 0.26, 1);
+  color: #fff;
+}
+
+@keyframes focusPop {
+  0% {
+    transform: scale(0.95) translateY(20px);
+    opacity: 0;
+  }
+
+  100% {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+}
+
+.focus-task-container {
+  margin-bottom: 50px;
+}
+
+.focus-task-container h2 {
+  font-size: 18px;
+  color: #94a3b8;
+  margin-bottom: 20px;
+  text-transform: uppercase;
+  letter-spacing: 3px;
+  font-weight: 700;
+}
+
+.focus-task-container input {
+  font-size: 32px;
+  font-weight: 800;
+  text-align: center;
+  border: none;
+  background: transparent;
+  width: 100%;
+  box-shadow: none;
+  padding: 12px;
+  color: #fff;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+}
+
+.focus-task-container input:focus {
+  border-bottom-color: var(--accent);
+  transform: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.focus-task-container input::placeholder {
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.focus-timer-large {
+  font-size: 160px;
+  line-height: 1;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  margin: 20px 0;
+  text-shadow: 0 10px 40px rgba(99, 102, 241, 0.4);
+}
+
+@media (max-width: 600px) {
+  .focus-timer-large {
+    font-size: 100px;
+  }
+
+  .focus-task-container input {
+    font-size: 24px;
+  }
+}
+
+.focus-duration-container {
+  margin-bottom: 60px;
+}
+
+.focus-duration-container .btn {
+  color: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.focus-duration-container .btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+}
+
+.focus-controls {
+  display: flex;
+  justify-content: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.focus-controls .btn.large-btn {
+  padding: 18px 36px;
+  font-size: 18px;
+  border-radius: 100px;
+  min-width: 160px;
+  font-weight: 700;
+}
+
+.btn.danger {
+  color: #fff;
+  background: var(--danger);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 10px 20px rgba(239, 68, 68, 0.2);
+}
+
+.btn.danger:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 14px 28px rgba(239, 68, 68, 0.3);
 }

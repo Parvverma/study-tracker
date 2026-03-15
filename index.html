@@ -41,7 +41,7 @@
 				<button id="download-report" class="btn" title="Download Report">📥 Download Report</button>
 				<button id="auth-btn" class="btn primary" title="Login / Signup">🔑 Login</button>
 				<button id="theme-toggle" class="btn theme-toggle" title="Toggle theme"
-				aria-label="Toggle dark light theme">🌗</button>
+					aria-label="Toggle dark light theme">🌗</button>
 			</div>
 		</div>
 	</header>
@@ -55,10 +55,11 @@
 			<!-- Add study form (main column) -->
 			<div class="card form-card">
 				<h3>➕ Add Study Log</h3>
-				<form id="log-form">
+				<form id="log-form" autocomplete="off">
 					<label>
 						Subject
-						<input type="text" id="subject" name="subject" placeholder="e.g. Math" required />
+						<input type="text" id="subject" name="new_subject_entry" autocomplete="new-password"
+							placeholder="e.g. Math" required />
 					</label>
 
 					<label>
@@ -144,43 +145,59 @@
 				<button id="timer-start" class="btn primary">Start</button>
 				<button id="timer-pause" class="btn">Pause</button>
 				<button id="timer-reset" class="btn">Reset</button>
+				<button id="timer-focus-mode" class="btn">Zen Mode 🧘‍♂️</button>
 			</div>
 		</div>
 
+		<!-- Daily Tasks System -->
+		<section class="grid" style="margin-bottom: 16px;">
+			<div class="card form-card" style="grid-column: 1 / -1;">
+				<h3>🔁 Daily Tasks</h3>
+				<form id="daily-task-form" autocomplete="off">
+					<div class="form-row">
+						<input type="text" id="daily-task-title" name="new_daily_task_entry" autocomplete="new-password"
+							placeholder="Add a daily repeating task (e.g. Revise notes, Workout)" required
+							class="flex-2" />
+						<button type="submit" class="btn primary flex-1" style="max-width: 200px;">➕ Add Daily
+							Task</button>
+					</div>
+				</form>
+				<ul id="daily-task-list" class="task-list"></ul>
+			</div>
+		</section>
+
 		<!-- To-Do System -->
 		<section class="grid" style="margin-bottom: 16px;">
-			<div class="card form-card" style="grid-column: 1 / 9;">
+			<div class="card form-card task-form-card">
 				<h3>📝 Tasks</h3>
-				<form id="task-form">
-					<div class="form-row" style="display: flex; gap: 12px; margin-bottom: 12px;">
-						<input type="text" id="task-title" placeholder="What needs to be done?" required
-							style="flex: 2" />
-						<input type="text" id="task-subject" placeholder="Subject (optional)" style="flex: 1" />
+				<form id="task-form" autocomplete="off">
+					<div class="form-row">
+						<input type="text" id="task-title" name="new_task_title" autocomplete="new-password"
+							placeholder="What needs to be done?" required class="flex-2" />
+						<input type="text" id="task-subject" name="new_task_subject" autocomplete="new-password"
+							placeholder="Subject (optional)" class="flex-1" />
 					</div>
-					<div class="form-row" style="display: flex; gap: 12px; margin-bottom: 12px;">
-						<select id="task-priority" class="styled-select" style="flex: 1" required>
+					<div class="form-row">
+						<select id="task-priority" class="styled-select flex-1" required>
 							<option value="Low">Low Priority</option>
 							<option value="Medium" selected>Medium Priority</option>
 							<option value="High">High Priority</option>
 						</select>
-						<input type="date" id="task-due-date" style="flex: 1" required />
-						<button type="submit" class="btn primary" style="flex: 1">➕ Add Task</button>
+						<input type="date" id="task-due-date" class="flex-1" required />
+						<button type="submit" class="btn primary flex-1">➕ Add Task</button>
 					</div>
 				</form>
 				<ul id="task-list" class="task-list"></ul>
 			</div>
 
-			<div class="card stats-card" style="grid-column: 9 / -1;">
+			<div class="card stats-card task-stats-card">
 				<h3>📋 Task Stats</h3>
-				<div style="margin-top: 12px; display: flex; flex-direction: column; gap: 12px;">
-					<div>Total Tasks: <span id="stat-total-tasks" class="stat-value"
-							style="font-size: 20px; display: inline-block; margin-left: 8px;">0</span></div>
-					<div>Completed: <span id="stat-completed-tasks" class="stat-value"
-							style="font-size: 20px; display: inline-block; margin-left: 8px;">0</span></div>
-					<div>Completion: <span id="stat-completion-pct" class="stat-value"
-							style="font-size: 20px; display: inline-block; margin-left: 8px;">0%</span></div>
-					<div>Overdue: <span id="stat-overdue-tasks" class="danger-text stat-value"
-							style="font-size: 20px; display: inline-block; margin-left: 8px;">0</span></div>
+				<div class="task-stats-container">
+					<div>Total Tasks: <span id="stat-total-tasks" class="stat-value task-stat-val">0</span></div>
+					<div>Completed: <span id="stat-completed-tasks" class="stat-value task-stat-val">0</span></div>
+					<div>Completion: <span id="stat-completion-pct" class="stat-value task-stat-val">0%</span></div>
+					<div>Overdue: <span id="stat-overdue-tasks" class="danger-text stat-value task-stat-val">0</span>
+					</div>
 				</div>
 			</div>
 		</section>
@@ -254,6 +271,28 @@
 		</div>
 	</div>
 
+	<!-- Focus Mode Full Screen Overlay -->
+	<div id="focus-mode-overlay" class="focus-mode-overlay" style="display: none;" aria-hidden="true">
+		<div class="focus-mode-content">
+			<div class="focus-task-container">
+				<h2>Currently Focusing On</h2>
+				<input type="text" id="focus-task-name" placeholder="What is your main task?" autocomplete="off" />
+			</div>
+
+			<div class="focus-timer-large" id="focus-timer-large">25:00</div>
+
+			<div class="focus-duration-container">
+				<button id="focus-duration-btn" class="btn" title="Change duration">⏱ Change Duration</button>
+			</div>
+
+			<div class="focus-controls">
+				<button id="focus-btn-start" class="btn primary large-btn">Start</button>
+				<button id="focus-btn-pause" class="btn large-btn" style="display: none;">Pause</button>
+				<button id="focus-btn-exit" class="btn danger large-btn">Exit Focus Mode</button>
+			</div>
+		</div>
+	</div>
+
 	<!-- Analytics section scripts -->
 	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 	<script src="script.js" defer></script>
@@ -262,6 +301,7 @@
 		import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
 		import { getFirestore, collection, addDoc, doc, getDoc, setDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 		import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
+		import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-messaging.js";
 
 		// Your web app's Firebase configuration
 		const firebaseConfig = {
@@ -280,6 +320,25 @@
 		const db = getFirestore(app);
 		const auth = getAuth(app);
 		const provider = new GoogleAuthProvider();
+
+		const messaging = getMessaging(app);
+
+		Notification.requestPermission().then((permission) => {
+			if (permission === "granted") {
+				getToken(messaging, {
+					vapidKey: "dK_6FgbgKus0Sr00q-zKlWPy5Vd4LWdZFvWiW9B0pVk"
+				}).then((token) => {
+					console.log("Device Token:", token);
+				});
+			}
+		});
+
+		onMessage(messaging, (payload) => {
+			new Notification(payload.notification.title, {
+				body: payload.notification.body,
+				icon: "/assets/icon.png"
+			});
+		});
 
 		// UI Elements
 		const authBtn = document.getElementById('auth-btn');
