@@ -27,6 +27,17 @@
 		<div class="fstar f11"></div>
 		<div class="fstar f12"></div>
 	</div>
+
+	<!-- Top Info Bar: Date, Time, Weather -->
+	<div class="top-info-bar" id="top-info-bar">
+		<div class="info-datetime">
+			<span id="top-date"></span> <span style="margin: 0 8px; opacity: 0.5;">|</span> <span id="top-time"></span>
+		</div>
+		<div class="info-weather" id="top-weather" title="Weather data via Open-Meteo">
+			<span style="opacity: 0.7;">🌤️ Fetching weather...</span>
+		</div>
+	</div>
+
 	<!-- Top Right Moon Icon -->
 	<div class="top-right-moon" aria-hidden="true">🌙</div>
 	<!-- Floating site header (centered, 80% width) -->
@@ -149,6 +160,50 @@
 			</div>
 		</div>
 
+		<!-- ── Focus Session Tracker ── -->
+		<section class="grid focus-session-grid">
+			<!-- Setup card -->
+			<div class="card focus-session-setup-card">
+				<h3>🎯 Focus Session</h3>
+				<form id="focus-session-form" autocomplete="off">
+					<div class="focus-session-fields">
+						<label>
+							Subject
+							<input type="text" id="fs-subject" placeholder="e.g. Mathematics"
+								autocomplete="new-password" required />
+						</label>
+						<label>
+							Topic
+							<input type="text" id="fs-topic" placeholder="e.g. Integration" autocomplete="new-password"
+								required />
+						</label>
+						<label>
+							Duration (minutes)
+							<input type="number" id="fs-duration" min="1" max="300" value="30" required />
+						</label>
+					</div>
+					<div class="focus-session-timer-display" id="fs-timer-display">30:00</div>
+					<div class="focus-session-status muted small" id="fs-status">Ready to start</div>
+					<div class="focus-session-actions">
+						<button type="submit" id="fs-start-btn" class="btn primary">▶ Start Session</button>
+						<button type="button" id="fs-stop-btn" class="btn" disabled>⏹ End Early</button>
+					</div>
+				</form>
+			</div>
+
+			<!-- Completed sessions list -->
+			<div class="card focus-session-history-card">
+				<div class="focus-session-history-header">
+					<h3>📋 Completed Sessions</h3>
+					<button id="fs-clear-btn" class="btn btn-small" title="Clear all sessions">🗑️ Clear All</button>
+				</div>
+				<ul id="fs-sessions-list" class="fs-sessions-list">
+					<!-- rendered by JS -->
+				</ul>
+				<p id="fs-no-sessions" class="muted small">No focus sessions yet. Start one above!</p>
+			</div>
+		</section>
+
 		<!-- Daily Tasks System -->
 		<section class="grid" style="margin-bottom: 16px;">
 			<div class="card form-card" style="grid-column: 1 / -1;">
@@ -255,6 +310,49 @@
 			</footer>
 	</main>
 
+	<!-- Download Report Modal -->
+	<div id="download-report-modal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true">
+		<div class="modal-content card" style="max-width: 400px; width: 90%;">
+			<h3 style="margin-top:0;">📥 Download Report</h3>
+			<p class="muted small">Select the date range for your study report.</p>
+			<form id="download-report-form">
+				<label>
+					From Date
+					<input type="date" id="report-start-date" required style="margin-top:4px; margin-bottom:10px;" />
+				</label>
+				<label>
+					To Date
+					<input type="date" id="report-end-date" required style="margin-top:4px;" />
+				</label>
+				<div class="form-actions" style="margin-top:16px;">
+					<button type="submit" class="btn primary" style="flex:1;">Download CSV</button>
+					<button type="button" id="report-modal-cancel" class="btn" style="flex:1;">Cancel</button>
+				</div>
+			</form>
+		</div>
+	</div>
+
+	<!-- Focus Session — post-session description modal -->
+	<div id="fs-description-modal" class="modal-overlay" style="display:none;" role="dialog" aria-modal="true"
+		aria-labelledby="fs-modal-title">
+		<div class="modal-content card">
+			<h3 id="fs-modal-title" style="margin-top:0;">🎉 Session Complete!</h3>
+			<p class="muted small" id="fs-modal-meta"></p>
+			<form id="fs-description-form">
+				<label>
+					What did you accomplish in this session?
+					<textarea id="fs-description-input" rows="4"
+						placeholder="e.g. Finished integration by parts, solved 10 problems..."
+						style="width:100%; margin-top:6px; padding:12px; border-radius:10px; border:1px solid rgba(0,0,0,0.08); font-size:14px; resize:vertical; font-family:inherit; background:var(--bg); color:var(--text);"></textarea>
+				</label>
+				<div class="form-actions" style="margin-top:14px;">
+					<button type="submit" class="btn primary" style="flex:1;">💾 Save Session</button>
+					<button type="button" id="fs-modal-skip" class="btn" style="flex:1;">Skip</button>
+				</div>
+			</form>
+		</div>
+	</div>
+
 	<!-- Username Modal Overlay -->
 	<div id="username-modal" class="modal-overlay" style="display: none;">
 		<div class="modal-content card">
@@ -299,7 +397,7 @@
 	<script type="module">
 		import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
 		import { getAnalytics } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-analytics.js";
-		import { getFirestore, collection, addDoc, doc, getDoc, setDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
+		import { getFirestore, collection, addDoc, deleteDoc, doc, getDoc, setDoc, getDocs, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-firestore.js";
 		import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-auth.js";
 		import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-messaging.js";
 
@@ -417,12 +515,12 @@
 				const q = query(collection(db, 'study_sessions'), where('userId', '==', uid));
 				const querySnapshot = await getDocs(q);
 
-				const logs = [];
+				// Build a map of Firestore logs keyed by their doc ID
+				const firestoreLogs = [];
 				querySnapshot.forEach((docSnap) => {
 					const data = docSnap.data();
-					// Ensure format exactly matches script.js logic locally
-					logs.push({
-						id: docSnap.id, // Replace local ID logic with Firebase Doc ID
+					firestoreLogs.push({
+						id: docSnap.id,
 						subject: data.subject || '',
 						minutes: data.minutes || 0,
 						date: data.date,
@@ -430,8 +528,20 @@
 					});
 				});
 
-				// Overwrite local storage with fetched data to sync perfectly
-				window._studyTracker.saveLogs(logs);
+				// Merge: keep any local-only logs (not yet in Firestore),
+				// and add Firestore logs that aren't already local.
+				// This prevents a fresh Firestore fetch from restoring deleted logs.
+				const localLogs = window._studyTracker.loadLogs();
+				const localIds = new Set(localLogs.map(l => l.id));
+				const firestoreIds = new Set(firestoreLogs.map(l => l.id));
+
+				// Firestore logs that are genuinely new (not deleted locally)
+				const newFromFirestore = firestoreLogs.filter(l => !localIds.has(l.id));
+				// Local logs that haven't been pushed to Firestore yet (keep them)
+				const localOnly = localLogs.filter(l => !firestoreIds.has(l.id));
+
+				const merged = [...localLogs.filter(l => firestoreIds.has(l.id)), ...newFromFirestore, ...localOnly];
+				window._studyTracker.saveLogs(merged);
 
 				// Force render UI
 				if (window._studyTracker.render) {
@@ -441,6 +551,16 @@
 				console.error('Failed fetching existing data: ', e);
 			}
 		}
+
+		// Delete a log from Firestore by its document ID
+		window.deleteFromFirebase = async function (docId) {
+			if (!currentUser) return; // only delete from cloud if authenticated
+			try {
+				await deleteDoc(doc(db, "study_sessions", docId));
+			} catch (e) {
+				console.error("Error deleting session from Firebase: ", e);
+			}
+		};
 
 		// Expose function globally so script.js can save new entries easily
 		window.saveToFirebase = async function (logEntry) {

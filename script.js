@@ -149,8 +149,19 @@
 	}
 
 	function deleteLog(id) {
-		const logs = loadLogs().filter(l => l.id !== id);
+		// 1. Remove from the in-memory array and persist to localStorage immediately
+		const logs = loadLogs();
+		const index = logs.findIndex(l => l.id === id);
+		if (index === -1) return; // guard: log not found, nothing to do
+		logs.splice(index, 1);
 		saveLogs(logs);
+
+		// 2. Mirror the deletion in Firestore so it doesn't reappear on refresh
+		if (window.deleteFromFirebase) {
+			window.deleteFromFirebase(id);
+		}
+
+		// 3. Re-render UI from the now-updated data (never touch the DOM directly)
 		render();
 	}
 
@@ -160,15 +171,34 @@
 
 	function totalMinutes(logs) { return logs.reduce((s, l) => s + (Number(l.minutes) || 0), 0); }
 
+	// Returns total focus-session minutes for a given date (from the FS_STORAGE_KEY store)
+	function focusMinutesForDate(dateISO) {
+		try {
+			const sessions = JSON.parse(localStorage.getItem('study-tracker-focus-sessions-v1') || '[]');
+			return sessions
+				.filter(s => s.date === dateISO)
+				.reduce((sum, s) => sum + (Number(s.duration) || 0), 0);
+		} catch (e) { return 0; }
+	}
+
 	// ----------------------
 	// Analytics helpers
 	// ----------------------
 	function subjectTotals() {
 		const map = new Map();
+		// Study logs
 		loadLogs().forEach(l => {
 			const s = l.subject || 'Untitled';
 			map.set(s, (map.get(s) || 0) + Number(l.minutes || 0));
 		});
+		// Focus sessions — group by subject
+		try {
+			const sessions = JSON.parse(localStorage.getItem('study-tracker-focus-sessions-v1') || '[]');
+			sessions.forEach(s => {
+				const subj = s.subject || 'Untitled';
+				map.set(subj, (map.get(subj) || 0) + Number(s.duration || 0));
+			});
+		} catch (e) { /* ignore */ }
 		return map;
 	}
 
@@ -187,7 +217,11 @@
 		});
 
 		const logs = loadLogs();
-		const byDay = days.map(d => logs.filter(l => l.date === d).reduce((s, l) => s + Number(l.minutes || 0), 0));
+		const byDay = days.map(d => {
+			const logMins = logs.filter(l => l.date === d).reduce((s, l) => s + Number(l.minutes || 0), 0);
+			const focusMins = focusMinutesForDate(d);
+			return logMins + focusMins;
+		});
 		return { days, byDay };
 	}
 
@@ -231,7 +265,8 @@
 		// display as hours/minutes
 		el.goalValueEl.textContent = formatMinutes(goal);
 		const todayISO = toISODate(new Date());
-		const minutesToday = logsForDate(todayISO).reduce((s, l) => s + Number(l.minutes || 0), 0);
+		const minutesToday = logsForDate(todayISO).reduce((s, l) => s + Number(l.minutes || 0), 0)
+			+ focusMinutesForDate(todayISO);
 		const pct = goal > 0 ? Math.min(100, Math.round((minutesToday / goal) * 100)) : 0;
 		if (el.goalPercentEl) el.goalPercentEl.textContent = pct + '%';
 		if (el.goalBarFill) el.goalBarFill.style.width = pct + '%';
@@ -241,7 +276,7 @@
 	// Productivity score
 	// ----------------------
 	function calculateProductivityScore() {
-		// Total weekly minutes and weekly goal (daily goal * 7)
+		// Total weekly minutes (logs + focus sessions) and weekly goal (daily goal * 7)
 		const { byDay } = weekTotals();
 		const totalWeekly = byDay.reduce((s, v) => s + v, 0);
 		const dailyGoal = loadGoal(); // minutes
@@ -250,7 +285,8 @@
 		const streak = calculateStreak();
 
 		const todayISO = toISODate(new Date());
-		const minutesToday = logsForDate(todayISO).reduce((s, l) => s + Number(l.minutes || 0), 0);
+		const minutesToday = logsForDate(todayISO).reduce((s, l) => s + Number(l.minutes || 0), 0)
+			+ focusMinutesForDate(todayISO);
 		const dailyPct = dailyGoal > 0 ? Math.min(100, Math.round((minutesToday / dailyGoal) * 100)) : 0;
 
 		const tasks = loadTasks();
@@ -295,10 +331,19 @@
 	function dayTotalMap() {
 		const logs = loadLogs();
 		const map = new Map();
+		// Add regular study log minutes
 		logs.forEach(l => {
 			const d = l.date;
 			map.set(d, (map.get(d) || 0) + Number(l.minutes || 0));
 		});
+		// Add focus session minutes on top
+		try {
+			const sessions = JSON.parse(localStorage.getItem('study-tracker-focus-sessions-v1') || '[]');
+			sessions.forEach(s => {
+				const d = s.date;
+				map.set(d, (map.get(d) || 0) + Number(s.duration || 0));
+			});
+		} catch (e) { /* ignore */ }
 		return map;
 	}
 
@@ -375,7 +420,10 @@
 		const showDate = selectedDate || toISODate(new Date());
 		const showLogs = logsForDate(showDate);
 
-		if (el.totalMinutesEl) el.totalMinutesEl.textContent = formatMinutes(totalMinutes(showLogs));
+		// Total = study logs + completed focus sessions for the same date
+		const logMins = totalMinutes(showLogs);
+		const focusMins = focusMinutesForDate(showDate);
+		if (el.totalMinutesEl) el.totalMinutesEl.textContent = formatMinutes(logMins + focusMins);
 		if (el.streakEl) el.streakEl.textContent = calculateStreak();
 		if (el.logsTitle) el.logsTitle.textContent = (showDate === toISODate(new Date())) ? "Today's Logs" : `Logs for ${showDate}`;
 
@@ -874,26 +922,195 @@
 	if (el.themeToggle) el.themeToggle.addEventListener('click', () => { const isDark = document.body.classList.contains('dark-theme'); setTheme(isDark ? 'light' : 'dark'); });
 	const savedTheme = localStorage.getItem(THEME_KEY) || 'light'; setTheme(savedTheme);
 
-	if (el.downloadReportBtn) {
-		el.downloadReportBtn.addEventListener('click', () => {
-			const logs = loadLogs();
-			let csvContent = 'Subject,Minutes,Date\n';
-			logs.forEach(log => {
-				const subject = (log.subject || '').includes(',') ? `"${log.subject}"` : (log.subject || '');
-				csvContent += `${subject},${log.minutes || 0},${log.date || ''}\n`;
-			});
+	const downloadReportModal = document.getElementById('download-report-modal');
+	const downloadReportForm = document.getElementById('download-report-form');
+	const reportModalCancel = document.getElementById('report-modal-cancel');
 
-			const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-			const url = URL.createObjectURL(blob);
-			const link = document.createElement('a');
-			link.setAttribute('href', url);
-			link.setAttribute('download', 'study-report.csv');
-			link.style.display = 'none';
-			document.body.appendChild(link);
-			link.click();
-			document.body.removeChild(link);
-			URL.revokeObjectURL(url);
+	if (el.downloadReportBtn && downloadReportModal) {
+		el.downloadReportBtn.addEventListener('click', () => {
+			downloadReportModal.style.display = 'flex';
+			const today = toISODate(new Date());
+			document.getElementById('report-start-date').value = today;
+			document.getElementById('report-end-date').value = today;
 		});
+
+		if (reportModalCancel) {
+			reportModalCancel.addEventListener('click', () => {
+				downloadReportModal.style.display = 'none';
+			});
+		}
+
+		if (downloadReportForm) {
+			downloadReportForm.addEventListener('submit', (e) => {
+				e.preventDefault();
+				const startDate = document.getElementById('report-start-date').value;
+				const endDate = document.getElementById('report-end-date').value;
+
+				if (!startDate || !endDate || startDate > endDate) {
+					alert('Please select a valid date range.');
+					return;
+				}
+
+				const logs = loadLogs().filter(l => l.date >= startDate && l.date <= endDate);
+				// Check if focus sessions function exists, if not use fallback
+				let sessions = [];
+				try {
+					sessions = typeof loadFocusSessions === 'function' ? loadFocusSessions() : JSON.parse(localStorage.getItem('study-tracker-focus-sessions-v1') || '[]');
+				} catch (err) { sessions = []; }
+				sessions = sessions.filter(s => s.date >= startDate && s.date <= endDate);
+
+				let combined = [];
+
+				// Format regular logs
+				logs.forEach(log => {
+					let end = new Date(log.createdAt);
+					if (isNaN(end.getTime())) end = new Date();
+
+					let start = new Date(end.getTime() - (log.minutes * 60000));
+					
+					let dMins = log.minutes || 0;
+					let dStr = dMins >= 60 ? (dMins % 60 === 0 ? `${dMins/60} hr${dMins/60 > 1 ? 's' : ''}` : `${Math.floor(dMins/60)} hr${Math.floor(dMins/60) > 1 ? 's' : ''} ${dMins%60} min`) : `${dMins} min`;
+
+					combined.push({
+						dateStr: log.date,
+						timestamp: end.getTime(),
+						subject: log.subject || 'Untitled',
+						startTime: start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+						endTime: end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+						duration: dMins,
+						durationStr: dStr,
+						description: 'Regular Study'
+					});
+				});
+
+				// Format focus sessions
+				sessions.forEach(s => {
+					let start = new Date(s.startTime);
+					// Fallback end time if missing
+					let dMins = s.duration || s.plannedMins || 0;
+					let end = s.endTime ? new Date(s.endTime) : new Date(start.getTime() + (dMins) * 60000);
+					let desc = s.topic ? (s.topic + (s.description ? ' - ' + s.description : '')) : (s.description || 'Focus Session');
+
+					let dStr = dMins >= 60 ? (dMins % 60 === 0 ? `${dMins/60} hr${dMins/60 > 1 ? 's' : ''}` : `${Math.floor(dMins/60)} hr${Math.floor(dMins/60) > 1 ? 's' : ''} ${dMins%60} min`) : `${dMins} min`;
+
+					combined.push({
+						dateStr: s.date,
+						timestamp: start.getTime(),
+						subject: s.subject || 'Untitled',
+						startTime: start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+						endTime: end.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
+						duration: dMins,
+						durationStr: dStr,
+						description: desc
+					});
+				});
+
+				// Sort by date/time ascending
+				combined.sort((a, b) => a.timestamp - b.timestamp);
+
+				// Generate styled HTML exported as .xls to keep colors and add spacing between days
+				let escapeHtml = (str) => String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+				let tableHtml = `
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40">
+<head>
+<meta charset="utf-8">
+<style>
+  th { background-color: #3751ff; color: #ffffff; font-weight: bold; border: 1px solid #c7cdff; padding: 10px; text-align: left; font-size: 14px; font-family: sans-serif; }
+  td { border: 1px solid #e2e8f0; padding: 8px; text-align: left; font-size: 13px; font-family: sans-serif; mso-number-format: "\\@"; }
+  .row-even { background-color: #ffffff; }
+  .row-odd { background-color: #f8fafc; }
+  .day-separator td { border: none; background-color: #f1f5f9; height: 18px; border-top: 2px solid #94a3b8; }
+  .desc { color: #475569; }
+  .subject { font-weight: bold; color: #1e293b; }
+</style>
+</head>
+<body>
+<table>
+	<thead>
+		<tr>
+			<th>Date</th>
+			<th>Start Time</th>
+			<th>End Time</th>
+			<th>Subject</th>
+			<th>Duration</th>
+			<th style="width: 350px;">Description / Accomplishments</th>
+		</tr>
+	</thead>
+	<tbody>
+`;
+
+				let lastDateStr = null;
+				let rowIndex = 0;
+				let dailyTotalMins = 0;
+
+				const formatMins = (dMins) => dMins >= 60 ? (dMins % 60 === 0 ? `${dMins/60} hr${dMins/60 > 1 ? 's' : ''}` : `${Math.floor(dMins/60)} hr${Math.floor(dMins/60) > 1 ? 's' : ''} ${dMins%60} min`) : `${dMins} min`;
+
+				const renderDailyTotal = (dateStr, totalMins) => {
+					return `
+		<tr style="background-color: #f8fbff; border-top: 2px solid #3751ff;">
+			<td colspan="4" style="text-align: right; font-weight: bold; color: #1e293b; padding-right: 16px;">Total Study Time for ${escapeHtml(dateStr)}:</td>
+			<td colspan="2" style="font-weight: bold; color: #3751ff; font-size: 14px;">${formatMins(totalMins)}</td>
+		</tr>
+		<tr class="day-separator">
+			<td colspan="6"></td>
+		</tr>`;
+				};
+
+				combined.forEach((item) => {
+					// Add a summary row and separator if the date changed
+					if (lastDateStr && lastDateStr !== item.dateStr) {
+						tableHtml += renderDailyTotal(lastDateStr, dailyTotalMins);
+						rowIndex = 0; 
+						dailyTotalMins = 0;
+					}
+					lastDateStr = item.dateStr;
+					// Parse standard duration back safely, some focus sessions hold it under 'duration' directly
+					let itemMins = Number(item.duration) || 0;
+					dailyTotalMins += itemMins;
+
+					let rowClass = rowIndex % 2 === 0 ? 'row-even' : 'row-odd';
+					rowIndex++;
+
+					tableHtml += `
+		<tr class="${rowClass}">
+			<td>${escapeHtml(item.dateStr)}</td>
+			<td>${escapeHtml(item.startTime)}</td>
+			<td>${escapeHtml(item.endTime)}</td>
+			<td class="subject">${escapeHtml(item.subject)}</td>
+			<td>${item.durationStr}</td>
+			<td class="desc">${escapeHtml(item.description)}</td>
+		</tr>`;
+				});
+
+				// Output the final day's total summary row
+				if (lastDateStr) {
+					tableHtml += `
+		<tr style="background-color: #f8fbff; border-top: 2px solid #3751ff;">
+			<td colspan="4" style="text-align: right; font-weight: bold; color: #1e293b; padding-right: 16px;">Total Study Time for ${escapeHtml(lastDateStr)}:</td>
+			<td colspan="2" style="font-weight: bold; color: #3751ff; font-size: 14px;">${formatMins(dailyTotalMins)}</td>
+		</tr>`;
+				}
+
+				tableHtml += `
+	</tbody>
+</table>
+</body>
+</html>`;
+
+				const blob = new Blob([tableHtml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+				const url = URL.createObjectURL(blob);
+				const link = document.createElement('a');
+				link.setAttribute('href', url);
+				link.setAttribute('download', `study-report-${startDate}-to-${endDate}.xls`);
+				link.style.display = 'none';
+				document.body.appendChild(link);
+				link.click();
+				document.body.removeChild(link);
+				URL.revokeObjectURL(url);
+
+				downloadReportModal.style.display = 'none';
+			});
+		}
 	}
 
 	if (el.saveGoalBtn) el.saveGoalBtn.addEventListener('click', () => {
@@ -948,8 +1165,266 @@
 	render();
 	loadTimerState();
 
+	// ============================================================
+	// FOCUS SESSION TRACKER
+	// ============================================================
+	const FS_STORAGE_KEY = 'study-tracker-focus-sessions-v1';
+
+	// ── DOM refs ──
+	const fsEl = {
+		form: document.getElementById('focus-session-form'),
+		subjectInput: document.getElementById('fs-subject'),
+		topicInput: document.getElementById('fs-topic'),
+		durationInput: document.getElementById('fs-duration'),
+		timerDisplay: document.getElementById('fs-timer-display'),
+		status: document.getElementById('fs-status'),
+		startBtn: document.getElementById('fs-start-btn'),
+		stopBtn: document.getElementById('fs-stop-btn'),
+		sessionsList: document.getElementById('fs-sessions-list'),
+		noSessions: document.getElementById('fs-no-sessions'),
+		clearBtn: document.getElementById('fs-clear-btn'),
+		modal: document.getElementById('fs-description-modal'),
+		modalMeta: document.getElementById('fs-modal-meta'),
+		descriptionForm: document.getElementById('fs-description-form'),
+		descriptionInput: document.getElementById('fs-description-input'),
+		modalSkip: document.getElementById('fs-modal-skip'),
+	};
+
+	// ── State ──
+	let fsInterval = null;   // setInterval handle
+	let fsRemaining = 0;      // seconds left
+	let fsStartTime = null;   // ISO string
+	let fsPendingSession = null;   // data waiting for description
+
+	// ── Storage helpers ──
+	function loadFocusSessions() {
+		try { return JSON.parse(localStorage.getItem(FS_STORAGE_KEY) || '[]'); }
+		catch (e) { return []; }
+	}
+	function saveFocusSessions(sessions) {
+		localStorage.setItem(FS_STORAGE_KEY, JSON.stringify(sessions));
+	}
+
+	// ── Core: startSession() ──
+	function startSession() {
+		const subject = (fsEl.subjectInput.value || '').trim();
+		const topic = (fsEl.topicInput.value || '').trim();
+		const duration = parseInt(fsEl.durationInput.value, 10);
+
+		if (!subject) { fsEl.subjectInput.focus(); return; }
+		if (!topic) { fsEl.topicInput.focus(); return; }
+		if (!duration || duration <= 0) { fsEl.durationInput.focus(); return; }
+
+		// Lock inputs
+		fsEl.subjectInput.disabled = true;
+		fsEl.topicInput.disabled = true;
+		fsEl.durationInput.disabled = true;
+		fsEl.startBtn.disabled = true;
+		fsEl.stopBtn.disabled = false;
+		fsEl.startBtn.textContent = '▶ Running…';
+
+		fsRemaining = duration * 60;
+		fsStartTime = new Date().toISOString();
+
+		fsUpdateDisplay();
+		fsSetStatus('⏱ Session in progress…', 'running');
+
+		fsInterval = setInterval(fsTick, 1000);
+	}
+
+	// ── Core: stopSession(completed) ──
+	function stopSession(completed = false) {
+		clearInterval(fsInterval);
+		fsInterval = null;
+
+		const endTime = new Date().toISOString();
+		const subject = fsEl.subjectInput.value.trim();
+		const topic = fsEl.topicInput.value.trim();
+		const duration = parseInt(fsEl.durationInput.value, 10);
+
+		// Calculate actual elapsed minutes
+		const elapsedMs = new Date(endTime) - new Date(fsStartTime);
+		const elapsedMinutes = Math.max(1, Math.round(elapsedMs / 60000));
+
+		fsPendingSession = {
+			id: genId(),
+			subject,
+			topic,
+			duration: elapsedMinutes,  // actual time spent
+			plannedMins: duration,
+			startTime: fsStartTime,
+			endTime,
+			date: toISODate(new Date()),
+			completed,
+			description: ''
+		};
+
+		fsSetStatus(completed ? '✅ Session complete!' : '⏹ Session ended early.', completed ? 'done' : 'stopped');
+		fsResetInputs();
+		fsShowDescriptionModal();
+	}
+
+	// ── Core: saveSession(description) ──
+	function saveSession(description) {
+		if (!fsPendingSession) return;
+		fsPendingSession.description = (description || '').trim();
+
+		const sessions = loadFocusSessions();
+		sessions.unshift(fsPendingSession);      // newest first
+		saveFocusSessions(sessions);
+
+		fsPendingSession = null;
+		renderSessions();
+		fsHideDescriptionModal();
+	}
+
+	// ── Core: renderSessions() ──
+	function renderSessions() {
+		if (!fsEl.sessionsList) return;
+		const sessions = loadFocusSessions();
+		fsEl.sessionsList.innerHTML = '';
+
+		if (!sessions.length) {
+			if (fsEl.noSessions) fsEl.noSessions.style.display = 'block';
+			return;
+		}
+		if (fsEl.noSessions) fsEl.noSessions.style.display = 'none';
+
+		sessions.forEach(s => {
+			const li = document.createElement('li');
+			li.className = 'fs-session-item';
+
+			const startFmt = new Date(s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+			const endFmt = new Date(s.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+			li.innerHTML = `
+				<div class="fs-item-header">
+					<div class="fs-item-meta-left">
+						<span class="fs-item-subject">${escHtml(s.subject)}</span>
+						<span class="fs-item-topic">— ${escHtml(s.topic)}</span>
+					</div>
+					<div class="fs-item-meta-right">
+						<span class="fs-item-badge ${s.completed ? 'badge-done' : 'badge-partial'}">${s.completed ? '✅ Done' : '⏹ Partial'}</span>
+						<button class="btn btn-icon fs-delete-btn" title="Delete session" data-id="${s.id}">🗑️</button>
+					</div>
+				</div>
+				<div class="fs-item-details">
+					<span>⏱ ${s.duration} min</span>
+					<span class="muted">|</span>
+					<span>🕐 ${startFmt} – ${endFmt}</span>
+					<span class="muted">|</span>
+					<span>📅 ${s.date}</span>
+				</div>
+				${s.description ? `<div class="fs-item-description">📝 ${escHtml(s.description)}</div>` : ''}
+			`;
+
+			li.querySelector('.fs-delete-btn').addEventListener('click', () => deleteFocusSession(s.id));
+			fsEl.sessionsList.appendChild(li);
+		});
+	}
+
+	// ── Helpers ──
+	function fsTick() {
+		fsRemaining--;
+		fsUpdateDisplay();
+		if (fsRemaining <= 0) stopSession(true);
+	}
+
+	function fsUpdateDisplay() {
+		const m = Math.floor(fsRemaining / 60).toString().padStart(2, '0');
+		const s = (fsRemaining % 60).toString().padStart(2, '0');
+		if (fsEl.timerDisplay) fsEl.timerDisplay.textContent = `${m}:${s}`;
+	}
+
+	function fsSetStatus(msg, state = '') {
+		if (!fsEl.status) return;
+		fsEl.status.textContent = msg;
+		fsEl.status.className = `focus-session-status muted small fs-status-${state}`;
+	}
+
+	function fsResetInputs() {
+		fsEl.subjectInput.disabled = false;
+		fsEl.topicInput.disabled = false;
+		fsEl.durationInput.disabled = false;
+		fsEl.startBtn.disabled = false;
+		fsEl.stopBtn.disabled = true;
+		fsEl.startBtn.textContent = '▶ Start Session';
+
+		// Reset display to planned duration value
+		const mins = parseInt(fsEl.durationInput.value, 10) || 30;
+		if (fsEl.timerDisplay) fsEl.timerDisplay.textContent =
+			`${String(mins).padStart(2, '0')}:00`;
+	}
+
+	function fsShowDescriptionModal() {
+		if (!fsEl.modal || !fsPendingSession) return;
+		const s = fsPendingSession;
+		const startFmt = new Date(s.startTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		const endFmt = new Date(s.endTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		if (fsEl.modalMeta) fsEl.modalMeta.textContent =
+			`${s.subject} › ${s.topic}  •  ${s.duration} min  •  ${startFmt} – ${endFmt}`;
+		if (fsEl.descriptionInput) fsEl.descriptionInput.value = '';
+		fsEl.modal.style.display = 'flex';
+		setTimeout(() => fsEl.descriptionInput && fsEl.descriptionInput.focus(), 60);
+	}
+
+	function fsHideDescriptionModal() {
+		if (fsEl.modal) fsEl.modal.style.display = 'none';
+	}
+
+	function deleteFocusSession(id) {
+		if (!confirm('Delete this focus session?')) return;
+		const sessions = loadFocusSessions().filter(s => s.id !== id);
+		saveFocusSessions(sessions);
+		renderSessions();
+	}
+
+	function escHtml(str) {
+		return String(str || '')
+			.replace(/&/g, '&amp;').replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+	}
+
+	// Update timer display when duration input changes (while not running)
+	if (fsEl.durationInput) {
+		fsEl.durationInput.addEventListener('input', () => {
+			if (fsInterval) return; // don't reset while running
+			const mins = parseInt(fsEl.durationInput.value, 10) || 0;
+			if (fsEl.timerDisplay) fsEl.timerDisplay.textContent =
+				`${String(Math.max(0, mins)).padStart(2, '0')}:00`;
+		});
+	}
+
+	// ── Events ──
+	if (fsEl.form) {
+		fsEl.form.addEventListener('submit', e => { e.preventDefault(); startSession(); });
+	}
+	if (fsEl.stopBtn) {
+		fsEl.stopBtn.addEventListener('click', () => stopSession(false));
+	}
+	if (fsEl.descriptionForm) {
+		fsEl.descriptionForm.addEventListener('submit', e => {
+			e.preventDefault();
+			saveSession(fsEl.descriptionInput ? fsEl.descriptionInput.value : '');
+		});
+	}
+	if (fsEl.modalSkip) {
+		fsEl.modalSkip.addEventListener('click', () => saveSession(''));
+	}
+	if (fsEl.clearBtn) {
+		fsEl.clearBtn.addEventListener('click', () => {
+			if (confirm('Clear all focus sessions?')) {
+				saveFocusSessions([]);
+				renderSessions();
+			}
+		});
+	}
+
+	// Initial render of sessions list
+	renderSessions();
+
 	// expose debug API
-	window._studyTracker = { loadLogs, saveLogs, addLog, deleteLog, calculateStreak, toggleTask: toggleTaskComplete, deleteTask, toggleDailyTask: toggleDailyTaskComplete, deleteDailyTask, render };
+	window._studyTracker = { loadLogs, saveLogs, addLog, deleteLog, calculateStreak, toggleTask: toggleTaskComplete, deleteTask, toggleDailyTask: toggleDailyTaskComplete, deleteDailyTask, render, loadFocusSessions, saveFocusSessions, renderSessions };
 
 	// Push Notifications (Firebase)
 	if (typeof firebase !== 'undefined') {
@@ -970,4 +1445,69 @@
 				console.log("Error:", err);
 			});
 	}
+
+	// ----------------------
+	// Top Info Bar (Date, Time, Weather)
+	// ----------------------
+	const topDateEl = document.getElementById('top-date');
+	const topTimeEl = document.getElementById('top-time');
+	const topWeatherEl = document.getElementById('top-weather');
+
+	function updateDateTime() {
+		if (!topDateEl || !topTimeEl) return;
+		const now = new Date();
+		const dateOptions = { weekday: 'short', month: 'short', day: 'numeric' };
+		topDateEl.textContent = now.toLocaleDateString(undefined, dateOptions);
+		const timeOptions = { hour: 'numeric', minute: '2-digit', hour12: true };
+		topTimeEl.textContent = now.toLocaleTimeString(undefined, timeOptions);
+	}
+
+	async function fetchWeather() {
+		if (!topWeatherEl) return;
+		try {
+			// First, get approximate coordinates using IP
+			const ipRes = await fetch('https://get.geojs.io/v1/ip/geo.json');
+			if (!ipRes.ok) throw new Error('IP locating failed');
+			const ipData = await ipRes.json();
+			const lat = ipData.latitude;
+			const lon = ipData.longitude;
+			const city = ipData.city || 'Unknown';
+
+			// Fetch weather using Open-Meteo
+			const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
+			if (!weatherRes.ok) throw new Error('Weather fetching failed');
+			const wData = await weatherRes.json();
+
+			const code = wData.current_weather.weathercode;
+			const temp = Math.round(wData.current_weather.temperature);
+
+			// Map WMO weather codes to emojis
+			let emoji = '🌤️';
+			if (code === 0) emoji = '☀️';
+			else if (code === 1 || code === 2 || code === 3) emoji = '⛅';
+			else if (code >= 45 && code <= 48) emoji = '🌫️';
+			else if (code >= 51 && code <= 55) emoji = '🌧️';
+			else if (code >= 61 && code <= 65) emoji = '🌦️';
+			else if (code >= 71 && code <= 77) emoji = '❄️';
+			else if (code >= 80 && code <= 82) emoji = '🌧️';
+			else if (code >= 85 && code <= 86) emoji = '🌨️';
+			else if (code >= 95) emoji = '⛈️';
+
+			topWeatherEl.innerHTML = `${emoji} ${temp}°C in ${city}`;
+
+		} catch (error) {
+			console.error('Weather error:', error);
+			topWeatherEl.innerHTML = '<span style="opacity: 0.7;">Weather unavailable</span>';
+		}
+	}
+
+	if (topDateEl && topTimeEl) {
+		updateDateTime();
+		setInterval(updateDateTime, 1000); // update every second
+	}
+	if (topWeatherEl) {
+		fetchWeather();
+		setInterval(fetchWeather, 30 * 60 * 1000); // update every 30 minutes
+	}
+
 })();
