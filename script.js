@@ -184,17 +184,18 @@
 	// ----------------------
 	// Analytics helpers
 	// ----------------------
-	function subjectTotals() {
+	function subjectTotals(dateISO = null) {
+		const targetDate = dateISO || selectedDate || toISODate(new Date());
 		const map = new Map();
 		// Study logs
-		loadLogs().forEach(l => {
+		loadLogs().filter(l => l.date === targetDate).forEach(l => {
 			const s = l.subject || 'Untitled';
 			map.set(s, (map.get(s) || 0) + Number(l.minutes || 0));
 		});
 		// Focus sessions — group by subject
 		try {
 			const sessions = JSON.parse(localStorage.getItem('study-tracker-focus-sessions-v1') || '[]');
-			sessions.forEach(s => {
+			sessions.filter(s => s.date === targetDate).forEach(s => {
 				const subj = s.subject || 'Untitled';
 				map.set(subj, (map.get(subj) || 0) + Number(s.duration || 0));
 			});
@@ -401,8 +402,18 @@
 
 	function calculateStreak() {
 		const logs = loadLogs();
-		if (!logs.length) return 0;
-		const daysSet = new Set(logs.map(l => l.date));
+		let sessions = [];
+		try {
+			sessions = typeof loadFocusSessions === 'function'
+				? loadFocusSessions()
+				: JSON.parse(localStorage.getItem('study-tracker-focus-sessions-v1') || '[]');
+		} catch (e) { sessions = []; }
+
+		if (!logs.length && !sessions.length) return 0;
+		const daysSet = new Set([
+			...logs.map(l => l.date),
+			...sessions.map(s => s.date)
+		]);
 		let streak = 0;
 		let cursor = new Date();
 		while (true) {
@@ -1169,6 +1180,7 @@
 	// FOCUS SESSION TRACKER
 	// ============================================================
 	const FS_STORAGE_KEY = 'study-tracker-focus-sessions-v1';
+	const FS_TIMER_STATE_KEY = 'study-tracker-focus-session-timer-v1';
 
 	// ── DOM refs ──
 	const fsEl = {
@@ -1192,9 +1204,59 @@
 
 	// ── State ──
 	let fsInterval = null;   // setInterval handle
-	let fsRemaining = 0;      // seconds left
+	let fsRemaining = 0;      // seconds left (derived)
 	let fsStartTime = null;   // ISO string
+	let fsEndTime = null;     // ISO string
 	let fsPendingSession = null;   // data waiting for description
+	let fsRunningMeta = null; // { subject, topic, plannedMins }
+
+	function loadFsTimerState() {
+		try {
+			const raw = localStorage.getItem(FS_TIMER_STATE_KEY);
+			return raw ? JSON.parse(raw) : null;
+		} catch (e) { return null; }
+	}
+
+	function saveFsTimerState() {
+		try {
+			if (!fsStartTime || !fsEndTime || !fsRunningMeta) {
+				localStorage.removeItem(FS_TIMER_STATE_KEY);
+				return;
+			}
+			localStorage.setItem(FS_TIMER_STATE_KEY, JSON.stringify({
+				startTime: fsStartTime,
+				endTime: fsEndTime,
+				subject: fsRunningMeta.subject,
+				topic: fsRunningMeta.topic,
+				plannedMins: fsRunningMeta.plannedMins
+			}));
+		} catch (e) { /* ignore */ }
+	}
+
+	function clearFsTimerState() {
+		fsStartTime = null;
+		fsEndTime = null;
+		fsRunningMeta = null;
+		try { localStorage.removeItem(FS_TIMER_STATE_KEY); } catch (e) { /* ignore */ }
+	}
+
+	function fsNowRemainingSeconds() {
+		if (!fsEndTime) return 0;
+		const ms = new Date(fsEndTime) - new Date();
+		return Math.max(0, Math.ceil(ms / 1000));
+	}
+
+	function fsStartTicker() {
+		if (fsInterval) return;
+		fsInterval = setInterval(fsTick, 1000);
+		// Also run once immediately so UI updates right away.
+		fsTick();
+	}
+
+	function fsStopTicker() {
+		clearInterval(fsInterval);
+		fsInterval = null;
+	}
 
 	// ── Storage helpers ──
 	function loadFocusSessions() {
@@ -1223,24 +1285,25 @@
 		fsEl.stopBtn.disabled = false;
 		fsEl.startBtn.textContent = '▶ Running…';
 
-		fsRemaining = duration * 60;
 		fsStartTime = new Date().toISOString();
+		fsEndTime = new Date(Date.now() + duration * 60 * 1000).toISOString();
+		fsRunningMeta = { subject, topic, plannedMins: duration };
+		saveFsTimerState();
 
+		fsRemaining = fsNowRemainingSeconds();
 		fsUpdateDisplay();
 		fsSetStatus('⏱ Session in progress…', 'running');
-
-		fsInterval = setInterval(fsTick, 1000);
+		fsStartTicker();
 	}
 
 	// ── Core: stopSession(completed) ──
 	function stopSession(completed = false) {
-		clearInterval(fsInterval);
-		fsInterval = null;
+		fsStopTicker();
 
 		const endTime = new Date().toISOString();
-		const subject = fsEl.subjectInput.value.trim();
-		const topic = fsEl.topicInput.value.trim();
-		const duration = parseInt(fsEl.durationInput.value, 10);
+		const subject = (fsRunningMeta?.subject || fsEl.subjectInput.value || '').trim();
+		const topic = (fsRunningMeta?.topic || fsEl.topicInput.value || '').trim();
+		const duration = Number(fsRunningMeta?.plannedMins) || parseInt(fsEl.durationInput.value, 10);
 
 		// Calculate actual elapsed minutes
 		const elapsedMs = new Date(endTime) - new Date(fsStartTime);
@@ -1258,6 +1321,8 @@
 			completed,
 			description: ''
 		};
+
+		clearFsTimerState();
 
 		fsSetStatus(completed ? '✅ Session complete!' : '⏹ Session ended early.', completed ? 'done' : 'stopped');
 		fsResetInputs();
@@ -1325,8 +1390,11 @@
 
 	// ── Helpers ──
 	function fsTick() {
-		fsRemaining--;
+		if (!fsEndTime) return;
+		fsRemaining = fsNowRemainingSeconds();
 		fsUpdateDisplay();
+		// Persist occasionally so a refresh restores correctly
+		saveFsTimerState();
 		if (fsRemaining <= 0) stopSession(true);
 	}
 
@@ -1354,6 +1422,22 @@
 		const mins = parseInt(fsEl.durationInput.value, 10) || 30;
 		if (fsEl.timerDisplay) fsEl.timerDisplay.textContent =
 			`${String(mins).padStart(2, '0')}:00`;
+	}
+
+	function fsApplyRunningUi(loadedState) {
+		// Lock inputs
+		fsEl.subjectInput.disabled = true;
+		fsEl.topicInput.disabled = true;
+		fsEl.durationInput.disabled = true;
+		fsEl.startBtn.disabled = true;
+		fsEl.stopBtn.disabled = false;
+		fsEl.startBtn.textContent = '▶ Running…';
+
+		// Populate fields for visibility
+		fsEl.subjectInput.value = loadedState.subject || '';
+		fsEl.topicInput.value = loadedState.topic || '';
+		if (loadedState.plannedMins) fsEl.durationInput.value = String(loadedState.plannedMins);
+		fsSetStatus('⏱ Session in progress…', 'running');
 	}
 
 	function fsShowDescriptionModal() {
@@ -1423,6 +1507,35 @@
 	// Initial render of sessions list
 	renderSessions();
 
+	// Restore running timer (if any) so it continues accurately in background
+	(function restoreFsTimerIfRunning() {
+		if (!fsEl.form) return;
+		const st = loadFsTimerState();
+		if (!st || !st.startTime || !st.endTime) return;
+		// If it already elapsed while we were away, auto-complete it.
+		const remaining = Math.max(0, Math.ceil((new Date(st.endTime) - new Date()) / 1000));
+		fsStartTime = st.startTime;
+		fsEndTime = st.endTime;
+		fsRunningMeta = { subject: st.subject || '', topic: st.topic || '', plannedMins: Number(st.plannedMins) || 0 };
+		fsApplyRunningUi(st);
+		fsRemaining = remaining;
+		fsUpdateDisplay();
+		if (remaining <= 0) {
+			// Mark complete immediately
+			stopSession(true);
+			return;
+		}
+		fsStartTicker();
+	})();
+
+	// When returning to the tab, force a recalculation so display is never stale.
+	document.addEventListener('visibilitychange', () => {
+		if (!fsEndTime) return;
+		if (document.visibilityState === 'visible') {
+			fsTick();
+		}
+	});
+
 	// expose debug API
 	window._studyTracker = { loadLogs, saveLogs, addLog, deleteLog, calculateStreak, toggleTask: toggleTaskComplete, deleteTask, toggleDailyTask: toggleDailyTaskComplete, deleteDailyTask, render, loadFocusSessions, saveFocusSessions, renderSessions };
 
@@ -1447,11 +1560,10 @@
 	}
 
 	// ----------------------
-	// Top Info Bar (Date, Time, Weather)
+	// Top Info Bar (Date & Time)
 	// ----------------------
 	const topDateEl = document.getElementById('top-date');
 	const topTimeEl = document.getElementById('top-time');
-	const topWeatherEl = document.getElementById('top-weather');
 
 	function updateDateTime() {
 		if (!topDateEl || !topTimeEl) return;
@@ -1462,52 +1574,9 @@
 		topTimeEl.textContent = now.toLocaleTimeString(undefined, timeOptions);
 	}
 
-	async function fetchWeather() {
-		if (!topWeatherEl) return;
-		try {
-			// First, get approximate coordinates using IP
-			const ipRes = await fetch('https://get.geojs.io/v1/ip/geo.json');
-			if (!ipRes.ok) throw new Error('IP locating failed');
-			const ipData = await ipRes.json();
-			const lat = ipData.latitude;
-			const lon = ipData.longitude;
-			const city = ipData.city || 'Unknown';
-
-			// Fetch weather using Open-Meteo
-			const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
-			if (!weatherRes.ok) throw new Error('Weather fetching failed');
-			const wData = await weatherRes.json();
-
-			const code = wData.current_weather.weathercode;
-			const temp = Math.round(wData.current_weather.temperature);
-
-			// Map WMO weather codes to emojis
-			let emoji = '🌤️';
-			if (code === 0) emoji = '☀️';
-			else if (code === 1 || code === 2 || code === 3) emoji = '⛅';
-			else if (code >= 45 && code <= 48) emoji = '🌫️';
-			else if (code >= 51 && code <= 55) emoji = '🌧️';
-			else if (code >= 61 && code <= 65) emoji = '🌦️';
-			else if (code >= 71 && code <= 77) emoji = '❄️';
-			else if (code >= 80 && code <= 82) emoji = '🌧️';
-			else if (code >= 85 && code <= 86) emoji = '🌨️';
-			else if (code >= 95) emoji = '⛈️';
-
-			topWeatherEl.innerHTML = `${emoji} ${temp}°C in ${city}`;
-
-		} catch (error) {
-			console.error('Weather error:', error);
-			topWeatherEl.innerHTML = '<span style="opacity: 0.7;">Weather unavailable</span>';
-		}
-	}
-
 	if (topDateEl && topTimeEl) {
 		updateDateTime();
 		setInterval(updateDateTime, 1000); // update every second
-	}
-	if (topWeatherEl) {
-		fetchWeather();
-		setInterval(fetchWeather, 30 * 60 * 1000); // update every 30 minutes
 	}
 
 })();
